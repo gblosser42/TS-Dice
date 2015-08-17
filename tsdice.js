@@ -5,7 +5,7 @@ var uids = ['serveradmin', 'Query2'];
 var pwds = ['GtzUz1Ev', 'ym0x89u3'];
 var config = require('./config.json');
 var cl = new Client('127.0.0.1');
-var uid = config.uid;
+var uid = config.username;
 var clid;
 var cid = 1;
 var pid;
@@ -242,7 +242,7 @@ cl.send('login', {client_login_name: uid, client_login_password: config.password
 			});
 			cl.send('channellist', function(err, response){
 				response.forEach(function(channel){
-					if (channel.channel_name === 'Roleplaying Channel') {
+					if (channel.channel_name === config.parent) {
 						pid = channel.cid;
 					}
 				});
