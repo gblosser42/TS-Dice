@@ -3,8 +3,9 @@ var Client = require('node-teamspeak');
 
 var uids = ['serveradmin', 'Query2'];
 var pwds = ['GtzUz1Ev', 'ym0x89u3'];
+var config = require('./config.json');
 var cl = new Client('127.0.0.1');
-var uid = 'serveradmin';
+var uid = config.uid;
 var clid;
 var cid = 1;
 var pid;
@@ -170,7 +171,7 @@ var baseDice = function (message) {
 	return builder + '\n' + 'TOTAL: ' + total;
 };
 
-cl.send('login', {client_login_name: uid, client_login_password: 'GtzUz1Ev'}, function(err, response){
+cl.send('login', {client_login_name: uid, client_login_password: config.password}, function(err, response){
 	cl.send('use', {sid: 1}, function(err, response){
 		cl.send('clientfind', {pattern: uid}, function (err, response) {
 			clid = response.clid;
