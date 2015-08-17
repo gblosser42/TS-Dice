@@ -16,6 +16,7 @@ var exaltedDice = function (message) {
 	var reroll = message.match(/r([0-9]+)/);
 	var target = message.match(/t([0-9]+)/);
 	var auto = message.match(/(\+|-)([0-9]+)/);
+	var count = message.match(/c([0-9]+)/);
 	var result;
 	var builder = '';
 	var successes = 0;
@@ -45,6 +46,11 @@ var exaltedDice = function (message) {
 	} else {
 		auto = 0;
 	}
+	if (count) {
+		count = parseInt(count[1], 10);
+	} else {
+		count = 0;
+	}
 	while (dice > 0) {
 		result = Math.floor(Math.random() * 10);
 		while (reroll.indexOf(result) > -1) {
@@ -55,7 +61,15 @@ var exaltedDice = function (message) {
 		}
 		if (result >= target) {
 			successes += 1;
-			sucDice += 1;
+		}
+		if (count) {
+			if (result === count) {
+				sucDice += 1;
+			}
+		} else {
+			if (result >= target) {
+				sucDice += 1;
+			}
 		}
 		if (result >= double) {
 			successes += 1;
