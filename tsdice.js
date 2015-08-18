@@ -4,7 +4,7 @@ var Client = require('node-teamspeak');
 var uids = ['serveradmin', 'Query2'];
 var pwds = ['GtzUz1Ev', 'ym0x89u3'];
 var config = require('./config.json');
-var cl = new Client('127.0.0.1');
+var cl = new Client('ts.rpnation.com');
 var uid = config.username;
 var clid;
 var cid = 1;
@@ -187,9 +187,9 @@ var baseDice = function (message) {
 
 cl.send('login', {client_login_name: uid, client_login_password: config.password}, function(err, response){
 	cl.send('use', {sid: 1}, function(err, response){
-		cl.send('clientfind', {pattern: uid}, function (err, response) {
-			clid = response.clid;
-			cl.send('clientupdate', {clid: response.clid, client_nickname: 'Dice Roller'}, function (err, response) {
+		cl.send('whoami', function (err, response) {
+			clid = response.client_id;
+			cl.send('clientupdate', {clid: clid, client_nickname: 'Dice Roller'}, function (err, response) {
 				cl.send('servernotifyregister', {event: 'textchannel', id:0}, function(err, response){
 					cl.on('textmessage', function (params) {
 						var msgParts = params.msg.match(/\((.+?)\)/);
@@ -198,7 +198,7 @@ cl.send('login', {client_login_name: uid, client_login_password: config.password
 						var remainder = '';
 						var labelStart = 0;
 						var diceCode = '';
-						if (msgParts && params.invokeruid !== uid) {
+						if (msgParts && params.invokerid !== clid) {
 							if (msgParts[1].indexOf('e') > -1) {
 								result = exaltedDice(msgParts[1]);
 							} else if (msgParts[1].indexOf('w') > -1) {
