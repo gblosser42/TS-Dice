@@ -4,7 +4,7 @@ var Client = require('node-teamspeak');
 var uids = ['serveradmin', 'Query2'];
 var pwds = ['GtzUz1Ev', 'ym0x89u3'];
 var config = require('./config.json');
-var cl = new Client('ts.rpnation.com');
+var cl = new Client(config.server);
 var uid = config.username;
 var clid;
 var cid = 1;
@@ -258,6 +258,12 @@ cl.send('login', {client_login_name: uid, client_login_password: config.password
 				response.forEach(function(channel){
 					if (channel.channel_name === config.parent) {
 						pid = channel.cid;
+					}
+					if (channel.channel_name.toLowerCase() === 'slow damnation' ||
+						channel.channel_name.toLowerCase() === 'all dreams must end') {
+						cl.send('clientmove', {clid: clid, cid: channel.cid}, function () {
+							cid = channel.cid;
+						});
 					}
 				});
 			});
