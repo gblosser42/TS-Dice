@@ -382,7 +382,7 @@ var initiativeHandler = function (params) {
 		var attackerNewValue = attackerOldValue + parseInt(parts[3], 10) + 1;
 		var defenderOldValue = tracker[dName].initiative;
 		var defenderNewValue = defenderOldValue - parseInt(parts[3], 10);
-		if (defenderNewValue <= 0) {
+		if (defenderNewValue <= 0 && defenderOldValue > 0) {
 			attackerNewValue += 5;
 			sendMessage(dName + ' is CRASHED');
 		}
@@ -555,37 +555,37 @@ cl.send('login', {client_login_name: uid, client_login_password: config.password
 						welcome(params);
 					}
 				});
-			});
-			cl.send('channellist', function(err, response){
-				response.forEach(function(channel){
-					if (channel.channel_name === config.parent) {
-						pid = channel.cid;
-					}
-					if (channel.channel_name.toLowerCase() === 'slow damnation' ||
-						channel.channel_name.toLowerCase() === 'all dreams must end') {
-						cl.send('clientmove', {clid: clid, cid: channel.cid}, function () {
-							cid = channel.cid;
-							cl.send('clientlist', {cid:cid}, function (err, response) {
-								if (response) {
-									if (response.forEach) {
-										response.forEach(function (client) {
-											welcome({clid: client.clid});
-											welcome({clid: client.clid});
-											if (client.client_nickname.toLowerCase() === 'storyteller' || client.client_nickname.toLowerCase() === 'lord of chaos') {
-												storyteller = client.clid;
+				cl.send('channellist', function(err, response){
+					response.forEach(function(channel){
+						if (channel.channel_name === config.parent) {
+							pid = channel.cid;
+						}
+						if (channel.channel_name.toLowerCase() === 'slow damnation' ||
+							channel.channel_name.toLowerCase() === 'all dreams must end') {
+							cl.send('clientmove', {clid: clid, cid: channel.cid}, function () {
+								cid = channel.cid;
+								cl.send('clientlist', {cid:cid}, function (err, response) {
+									if (response) {
+										if (response.forEach) {
+											response.forEach(function (client) {
+												welcome({clid: client.clid});
+												welcome({clid: client.clid});
+												if (client.client_nickname.toLowerCase() === 'storyteller' || client.client_nickname.toLowerCase() === 'lord of chaos') {
+													storyteller = client.clid;
+												}
+											});
+										} else {
+											welcome({clid: response.clid});
+											welcome({clid: response.clid});
+											if (response.client_nickname.toLowerCase() === 'storyteller' || response.client_nickname.toLowerCase() === 'lord of chaos') {
+												storyteller = response.clid;
 											}
-										});
-									} else {
-										welcome({clid: response.clid});
-										welcome({clid: response.clid});
-										if (response.client_nickname.toLowerCase() === 'storyteller' || response.client_nickname.toLowerCase() === 'lord of chaos') {
-											storyteller = response.clid;
 										}
 									}
-								}
+								});
 							});
-						});
-					}
+						}
+					});
 				});
 			});
 		});
