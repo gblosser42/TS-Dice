@@ -9,6 +9,8 @@ var uid = config.username;
 var clid;
 var cid = 1;
 var pid;
+var clientMessageStatus = {};
+var storyteller;
 
 var exaltedDice = function (message) {
 	var dice = message.match(/([0-9]+)e/);
@@ -191,6 +193,75 @@ var keepAlive = function () {
 			});
 };
 
+var welcome = function (params) {
+	var target = params.clid;
+	var msg = 'Welcome! I am the Dice Bot!';
+	if (clientMessageStatus[target] === undefined) {
+		clientMessageStatus[target] = 0;
+	}
+	if (clientMessageStatus[target] % 2 === 1) {
+		msg = 'You can send me any dice commands in this window, and I will roll them in secret and send the results to you and the Storyteller';
+	}
+	clientMessageStatus[target] += 1;
+	cl.send('sendtextmessage', {
+		targetmode: 1, target: target, msg: msg
+	}, function (err, response) {});
+};
+
+var diceHandler = function (params) {
+	var msgParts = params.msg.toString().match(/\(([0-9].+?)\)/);
+	var result;
+	var firstPart;
+	var remainder = '';
+	var labelStart = 0;
+	var diceCode = '';
+	var target = params.target ? params.invokerid : cid;
+	var msg = '';
+	if (msgParts && params.invokerid !== clid) {
+		if (msgParts[1].match(/[0-9]+?e/)) {
+			result = exaltedDice(msgParts[1]);
+		} else if (msgParts[1].match(/[0-9]+?w/)) {
+			result = wodDice(msgParts[1]);
+		} else if (msgParts[1].match(/[0-9]+?d/)) {
+			result = baseDice(msgParts[1]);
+		}
+		if (result) {
+			labelStart = params.msg.indexOf(' ') + 1;
+			if (params.msg.length > 30 && labelStart > 0) {
+				firstPart = params.msg.substring(labelStart, 30 + labelStart);
+				remainder = params.msg.substring(30 + labelStart);
+				diceCode = params.msg.substring(0, labelStart);
+			} else {
+				if (labelStart > 0) {
+					firstPart = params.msg.substring(labelStart);
+					diceCode = params.msg.substring(0, labelStart);
+				} else {
+					firstPart = 'Dice Roller';
+					diceCode = params.msg;
+				}
+			}
+			msg = remainder + '\n' + params.invokername +
+				' rolling ' + diceCode + '\n' + result;
+			cl.send('clientupdate', {clid: clid, client_nickname: firstPart}, function () {
+				cl.send('sendtextmessage', {
+					targetmode: params.targetmode, target: target, msg: msg
+				}, function (err, response) {
+					if (params.targetmode === 1 && target !== storyteller && storyteller !== undefined) {
+						cl.send('sendtextmessage', {
+							targetmode: 1, target: storyteller, msg: msg
+						}, function (err, response) {
+							cl.send('clientupdate', {clid: clid, client_nickname: 'Dice Roller'}, function () {});
+						});
+					} else {
+						cl.send('clientupdate', {clid: clid, client_nickname: 'Dice Roller'}, function () {
+						});
+					}
+				});
+			});
+		}
+	}
+};
+
 cl.send('login', {client_login_name: uid, client_login_password: config.password}, function(err, response){
 	console.log(err,response);
 	cl.send('use', {sid: 1}, function(err, response){
@@ -199,44 +270,7 @@ cl.send('login', {client_login_name: uid, client_login_password: config.password
 			cl.send('clientupdate', {clid: clid, client_nickname: 'Dice Roller'}, function (err, response) {
 				cl.send('servernotifyregister', {event: 'textchannel', id:0}, function(err, response){
 					cl.on('textmessage', function (params) {
-						var msgParts = params.msg.toString().match(/\(([0-9].+?)\)/);
-						var result;
-						var firstPart;
-						var remainder = '';
-						var labelStart = 0;
-						var diceCode = '';
-						if (msgParts && params.invokerid !== clid) {
-							if (msgParts[1].match(/[0-9]+?e/)) {
-								result = exaltedDice(msgParts[1]);
-							} else if (msgParts[1].match(/[0-9]+?w/)) {
-								result = wodDice(msgParts[1]);
-							} else if (msgParts[1].match(/[0-9]+?d/)) {
-								result = baseDice(msgParts[1]);
-							}
-							if (result) {
-								labelStart = params.msg.indexOf(' ') + 1;
-								if (params.msg.length > 30 && labelStart > 0) {
-									firstPart = params.msg.substring(labelStart, 30 + labelStart);
-									remainder = params.msg.substring(30 + labelStart);
-									diceCode = params.msg.substring(0, labelStart);
-								} else {
-									if (labelStart > 0) {
-										firstPart = params.msg.substring(labelStart);
-										diceCode = params.msg.substring(0, labelStart);
-									} else {
-										firstPart = 'Dice Roller';
-										diceCode = params.msg;
-									}
-								}
-								cl.send('clientupdate', {clid: clid, client_nickname: firstPart}, function () {
-									cl.send('sendtextmessage', {
-										targetmode: 2, msg: remainder + '\n' + params.invokername +
-										' rolling ' + diceCode + '\n' + result
-									}, function (err, response) {
-									});
-								});
-							}
-						}
+						diceHandler(params);
 					});
 					keepAlive();
 				});
@@ -249,21 +283,10 @@ cl.send('login', {client_login_name: uid, client_login_password: config.password
 						}
 					});
 				});
+				cl.send('servernotifyregister', {event: 'textprivate', id:0}, function (err, response) {});
 				cl.on('clientmoved', function (params) {
-					if (cid !== 1) {
-						cl.send('clientlist', {cid: cid}, function (err, response) {
-							var empty = true;
-							response.forEach(function (event) {
-								if (event.cid === cid && event.clid !== clid) {
-									empty = false;
-								}
-							});
-							if (empty) {
-								cl.send('clientmove', {clid: clid, cid: 1}, function () {
-									cid = 1;
-								});
-							}
-						});
+					if (params.ctid === cid) {
+						welcome(params);
 					}
 				});
 			});
@@ -276,6 +299,15 @@ cl.send('login', {client_login_name: uid, client_login_password: config.password
 						channel.channel_name.toLowerCase() === 'all dreams must end') {
 						cl.send('clientmove', {clid: clid, cid: channel.cid}, function () {
 							cid = channel.cid;
+							cl.send('clientlist', {cid:cid}, function (err, response) {
+								response.forEach(function(client){
+									welcome({clid:client.clid});
+									welcome({clid:client.clid});
+									if (client.client_nickname.toLowerCase() === 'storyteller' || client.client_nickname.toLowerCase() === 'lord of chaos') {
+										storyteller = client.clid;
+									}
+								});
+							});
 						});
 					}
 				});
