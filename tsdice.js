@@ -4,7 +4,7 @@ var Client = require('node-teamspeak');
 var uids = ['serveradmin', 'Query2'];
 var pwds = ['GtzUz1Ev', 'ym0x89u3'];
 var config = require('./config.json');
-var cl = new Client('ts.rpnation.com');
+var cl = new Client(config.server);
 var uid = config.username;
 var clid;
 var cid = 1;
@@ -185,14 +185,21 @@ var baseDice = function (message) {
 	return builder + '\n' + 'TOTAL: ' + total;
 };
 
+var keepAlive = function () {
+	cl.send('channellist', function(err, response){
+				setTimeout(keepAlive, 120000);
+			});
+};
+
 cl.send('login', {client_login_name: uid, client_login_password: config.password}, function(err, response){
+	console.log(err,response);
 	cl.send('use', {sid: 1}, function(err, response){
 		cl.send('whoami', function (err, response) {
 			clid = response.client_id;
 			cl.send('clientupdate', {clid: clid, client_nickname: 'Dice Roller'}, function (err, response) {
 				cl.send('servernotifyregister', {event: 'textchannel', id:0}, function(err, response){
 					cl.on('textmessage', function (params) {
-						var msgParts = params.msg.match(/\((.+?)\)/);
+						var msgParts = params.msg.toString().match(/\(([0-9].+?)\)/);
 						var result;
 						var firstPart;
 						var remainder = '';
@@ -226,6 +233,7 @@ cl.send('login', {client_login_name: uid, client_login_password: config.password
 							});
 						}
 					});
+					keepAlive();
 				});
 				cl.send('servernotifyregister', {event: 'channel', id:0}, function(err, response){
 					cl.on('channelcreated', function (params) {
@@ -258,6 +266,12 @@ cl.send('login', {client_login_name: uid, client_login_password: config.password
 				response.forEach(function(channel){
 					if (channel.channel_name === config.parent) {
 						pid = channel.cid;
+					}
+					if (channel.channel_name.toLowerCase() === 'slow damnation' ||
+						channel.channel_name.toLowerCase() === 'all dreams must end') {
+						cl.send('clientmove', {clid: clid, cid: channel.cid}, function () {
+							cid = channel.cid;
+						});
 					}
 				});
 			});
