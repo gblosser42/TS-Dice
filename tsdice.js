@@ -89,7 +89,7 @@ var exaltedDice = function (message) {
 		}
 	}
 	successes += auto;
-	return builder + '\n' + 'SUCCESSES: ' + successes + '(' + sucDice + ')';
+	return builder + '\n' + '[b]SUCCESSES: ' + successes + '(' + sucDice + ')[/b]';
 };
 
 var wodDice = function (message) {
@@ -142,7 +142,7 @@ var wodDice = function (message) {
 		}
 	}
 	successes += auto;
-	return builder + '\n' + 'SUCCESSES: ' + successes + '(' + sucDice + ')';
+	return builder + '\n' + '[b]SUCCESSES: ' + successes + '(' + sucDice + ')[/b]';
 };
 
 var baseDice = function (message) {
@@ -182,7 +182,7 @@ var baseDice = function (message) {
 		}
 	}
 	total += auto;
-	return builder + '\n' + 'TOTAL: ' + total;
+	return builder + '\n' + '[b]TOTAL: ' + total + '[/b]';
 };
 
 var keepAlive = function () {
@@ -206,31 +206,36 @@ cl.send('login', {client_login_name: uid, client_login_password: config.password
 						var labelStart = 0;
 						var diceCode = '';
 						if (msgParts && params.invokerid !== clid) {
-							if (msgParts[1].indexOf('e') > -1) {
+							if (msgParts[1].match(/[0-9]+?e/)) {
 								result = exaltedDice(msgParts[1]);
-							} else if (msgParts[1].indexOf('w') > -1) {
+							} else if (msgParts[1].match(/[0-9]+?w/)) {
 								result = wodDice(msgParts[1]);
-							} else if (msgParts[1].indexOf('d') > -1) {
+							} else if (msgParts[1].match(/[0-9]+?d/)) {
 								result = baseDice(msgParts[1]);
 							}
-							labelStart = params.msg.indexOf(' ') + 1;
-							if (params.msg.length > 30 && labelStart > 0) {
-								firstPart = params.msg.substring(labelStart,30 + labelStart);
-								remainder = params.msg.substring(30 + labelStart);
-								diceCode = params.msg.substring(0,labelStart);
-							} else {
-								if (labelStart > 0) {
-									firstPart = params.msg.substring(labelStart);
-									diceCode = params.msg.substring(0,labelStart);
+							if (result) {
+								labelStart = params.msg.indexOf(' ') + 1;
+								if (params.msg.length > 30 && labelStart > 0) {
+									firstPart = params.msg.substring(labelStart, 30 + labelStart);
+									remainder = params.msg.substring(30 + labelStart);
+									diceCode = params.msg.substring(0, labelStart);
 								} else {
-									firstPart = 'Dice Roller';
-									diceCode = params.msg;
+									if (labelStart > 0) {
+										firstPart = params.msg.substring(labelStart);
+										diceCode = params.msg.substring(0, labelStart);
+									} else {
+										firstPart = 'Dice Roller';
+										diceCode = params.msg;
+									}
 								}
+								cl.send('clientupdate', {clid: clid, client_nickname: firstPart}, function () {
+									cl.send('sendtextmessage', {
+										targetmode: 2, msg: remainder + '\n' + params.invokername +
+										' rolling ' + diceCode + '\n' + result
+									}, function (err, response) {
+									});
+								});
 							}
-							cl.send('clientupdate', {clid: clid, client_nickname: firstPart}, function () {
-								cl.send('sendtextmessage', { targetmode: 2, msg: remainder + '\n' + params.invokername +
-								' rolling ' + diceCode + '\n' + result }, function (err, response) {});
-							});
 						}
 					});
 					keepAlive();
