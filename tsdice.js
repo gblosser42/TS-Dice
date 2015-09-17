@@ -217,7 +217,6 @@ var initiativeHandler = function (params) {
 	var parts = raw.split(' ');
 	var command = parts[0];
 	var highest = -9999999;
-	var active = [];
 	var sendMessage = function (msg) {
 		cl.send('clientupdate', {clid: clid, client_nickname: 'Initiative'}, function () {
 			cl.send('sendtextmessage', {
@@ -241,14 +240,18 @@ var initiativeHandler = function (params) {
 		});
 	};
 	var next = function () {
+		var active = [];
+		var oldActors = [];
 		Object.keys(tracker).forEach(function (actor) {
 			actor = tracker[actor];
 			if (!actor.acted) {
 				if (actor.initiative > highest) {
 					highest = actor.initiative;
 					active = [actor];
+					oldActors = [JSON.parse(JSON.stringify(actor))];
 				} else if (actor.initiative === highest) {
 					active.push(actor);
+					oldActors.push(JSON.parse(JSON.stringify(actor)));
 				}
 			}
 		});
@@ -256,19 +259,26 @@ var initiativeHandler = function (params) {
 			output = highest + ':';
 			active.forEach(function (actor) {
 				actor.acted = true;
-				output += ' ' + actor.name + ',';
+				actor.motes = Math.min(actor.motes+5,actor.maxMotes);
+				output += ' ' + actor.name;
+				if (actor.maxMotes > 0) {
+					output += '('  + actor.motes + '/' + actor.maxMotes + ')';
+				}
+				 output += ',';
 			});
 			output = output.replace(/,$/, '');
 			sendMessage(output);
 			back.push(function (un) {
 				if (un === 'undo') {
-					active.forEach(function (actor) {
+					active.forEach(function (actor, index) {
 						actor.acted = false;
+						actor.motes = oldActors[index].motes;
 					});
 					sendMessage('Undoing next turn');
 				} else {
 					active.forEach(function (actor) {
 						actor.acted = true;
+						actor.motes = Math.min(actor.motes+5,actor.maxMotes);
 					});
 					sendMessage('Redoing next turn');
 				}
@@ -304,6 +314,8 @@ var initiativeHandler = function (params) {
 		var actor = {
 			name: name,
 			initiative: parseInt(parts[2], 10) || 0,
+			motes: 0,
+			maxMotes: 0,
 			acted: false
 		};
 		tracker[name] = actor;
@@ -337,7 +349,11 @@ var initiativeHandler = function (params) {
 		var output = [],
 		toPrint = '';
 		Object.keys(tracker).forEach(function (name) {
-			output.push(tracker[name].initiative + ' ' + name);
+			var data = tracker[name].initiative + ' ' + name;
+			if (tracker[name].maxMotes > 0) {
+				data += '('  + tracker[name].motes + '/' + tracker[name].maxMotes + ')';
+			}
+			output.push(data);
 		});
 		output.sort(function (a, b) { return parseFloat(b.split(' ')[0]) - parseFloat(a.split(' ')[0]) });
 		output.forEach(function (val) {
@@ -346,32 +362,34 @@ var initiativeHandler = function (params) {
 		sendMessage('\n' + toPrint.replace(/\n$/, ''));
 	};
 	var set = function () {
-		var oldValue = tracker[parts[1]].initiative;
-		var newValue = parseInt(parts[2], 10);
+		var trait = parts[2];
+		var oldValue = tracker[parts[1]][trait];
+		var newValue = parseInt(parts[3], 10);
 		var name = parts[1];
-		tracker[name].initiative = newValue;
+		tracker[name][trait] = newValue;
 		back.push(function (un) {
 			if (un==='undo') {
-				tracker[name].initiative = oldValue;
-				sendMessage('Reset ' + name + '\'s initiative to ' + oldValue);
+				tracker[name][trait] = oldValue;
+				sendMessage('Reset ' + name + '\'s ' + trait + ' to ' + oldValue);
 			} else {
-				tracker[name].initiative = newValue;
-				sendMessage('Re-set ' + name + '\'s initiative to ' + newValue);
+				tracker[name][trait] = newValue;
+				sendMessage('Re-set ' + name + '\'s ' + trait + ' to ' + newValue);
 			}
 		});
 	};
 	var modify = function () {
-		var oldValue = tracker[parts[1]].initiative;
-		var newValue = oldValue + parseInt(parts[2], 10);
+		var trait = parts[2];
+		var oldValue = tracker[parts[1]][trait];
+		var newValue = oldValue + parseInt(parts[3], 10);
 		var name = parts[1];
-		tracker[name].initiative = newValue;
+		tracker[name][trait] = newValue;
 		back.push(function (un) {
 			if (un==='undo') {
-				tracker[name].initiative = oldValue;
-				sendMessage('Reset ' + name + '\'s initiative to ' + oldValue);
+				tracker[name][trait] = oldValue;
+				sendMessage('Reset ' + name + '\'s ' + trait + ' to ' + oldValue);
 			} else {
-				tracker[name].initiative = newValue;
-				sendMessage('Re-set ' + name + '\'s initiative to ' + newValue);
+				tracker[name][trait] = newValue;
+				sendMessage('Re-set ' + name + '\'s ' + trait + ' to ' + newValue);
 			}
 		});
 	};
@@ -422,7 +440,11 @@ var initiativeHandler = function (params) {
 	};
 	var check = function () {
 		var name = parts[1];
-		var output = tracker[name].initiative + ' ' + name;
+		var output = tracker[name].initiative + ' ' + name + '('  + tracker[name].motes + '/' + tracker[name].maxMotes + ')';
+		sendMessage(output);
+	};
+	var help = function () {
+		var output = '\nreset\nnext\nadd NAME [INITIATIVE]\nlist\ncheck NAME\nset NAME TRAIT VALUE\nmodify NAME TRAIT AMOUNT\nwithering ATTACKER DEFENDER AMOUNT\ndelete NAME\nundo\nredo\nhelp';
 		sendMessage(output);
 	};
 	try {
@@ -460,6 +482,9 @@ var initiativeHandler = function (params) {
 				break;
 			case 'redo':
 				redo();
+				break;
+			case 'help':
+				help();
 				break;
 			case 'default':
 				sendMessage('Not Recognized Command');
@@ -531,11 +556,13 @@ cl.send('login', {client_login_name: uid, client_login_password: config.password
 			cl.send('clientupdate', {clid: clid, client_nickname: 'Dice Roller'}, function (err, response) {
 				cl.send('servernotifyregister', {event: 'textchannel', id:0}, function(err, response){
 					cl.on('textmessage', function (params) {
-						if (params.msg.match(/^!/)) {
-							initiativeHandler(params);
-						}
-						else {
-							diceHandler(params);
+						if (params.msg) {
+							if (params.msg.toString().match(/^!/)) {
+								initiativeHandler(params);
+							}
+							else {
+								diceHandler(params);
+							}
 						}
 					});
 					keepAlive();
