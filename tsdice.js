@@ -1,8 +1,6 @@
 'use strict';
 var Client = require('node-teamspeak');
 
-var uids = ['serveradmin', 'Query2'];
-var pwds = ['GtzUz1Ev', 'ym0x89u3'];
 var config = require('./config.json');
 var cl = new Client(config.server);
 var uid = config.username;
@@ -222,6 +220,11 @@ var initiativeHandler = function (params) {
 	var parts = raw.split(' ');
 	var command = parts[0];
 	var highest = -9999999;
+	if (parts[1]) {
+		if (parts[1].toLowerCase() === 'me' || parts[1].toLowerCase() === 'my') {
+			parts[1] = params.invokername;
+		}
+	}
 	var sendMessage = function (msg) {
 		cl.send('clientupdate', {clid: clid, client_nickname: 'Initiative'}, function () {
 			cl.send('sendtextmessage', {
@@ -273,10 +276,10 @@ var initiativeHandler = function (params) {
 			output = highest + ':';
 			active.forEach(function (actor) {
 				actor.acted = true;
-				actor.motes = Math.min(actor.motes+5,actor.maxMotes);
+				actor.motes = Math.min(actor.motes+5,actor.maxmotes);
 				output += ' ' + actor.name;
-				if (actor.maxMotes > 0) {
-					output += '('  + actor.motes + '/' + actor.maxMotes + ')';
+				if (actor.maxmotes > 0) {
+					output += '('  + actor.motes + '/' + actor.maxmotes + ')';
 				}
 				 output += ',';
 			});
@@ -292,7 +295,7 @@ var initiativeHandler = function (params) {
 				} else {
 					active.forEach(function (actor) {
 						actor.acted = true;
-						actor.motes = Math.min(actor.motes+5,actor.maxMotes);
+						actor.motes = Math.min(actor.motes+5,actor.maxmotes);
 					});
 					sendMessage('Redoing next turn');
 				}
@@ -329,8 +332,8 @@ var initiativeHandler = function (params) {
 		var actor = {
 			name: name,
 			initiative: parseInt(parts[2], 10) || 0,
-			motes: 0,
-			maxMotes: 0,
+			motes: parseInt(parts[3], 10) || 0,
+			maxmotes: parseInt(parts[3], 10) || 0,
 			acted: false
 		};
 		tracker[name] = actor;
@@ -378,8 +381,8 @@ var initiativeHandler = function (params) {
 				data += '[i]';
 			}
 			data += actor.initiative + ' ' + name;
-			if (actor.maxMotes > 0) {
-				data += '('  + actor.motes + '/' + actor.maxMotes + ')';
+			if (actor.maxmotes > 0) {
+				data += '('  + actor.motes + '/' + actor.maxmotes + ')';
 			}
 			if (isActive) {
 				data += '[/b]';
@@ -395,7 +398,7 @@ var initiativeHandler = function (params) {
 		sendMessage('\n' + toPrint.replace(/\n$/, ''));
 	};
 	var set = function () {
-		var trait = parts[2];
+		var trait = parts[2].toLowerCase() === 'init' ? 'initiative' : parts[2].toLowerCase();
 		var oldValue = tracker[parts[1]][trait];
 		var newValue = parseInt(parts[3], 10);
 		var name = parts[1];
@@ -411,7 +414,7 @@ var initiativeHandler = function (params) {
 		});
 	};
 	var modify = function () {
-		var trait = parts[2];
+		var trait = parts[2].toLowerCase() === 'init' ? 'initiative' : parts[2].toLowerCase();
 		var oldValue = tracker[parts[1]][trait];
 		var newValue = oldValue + parseInt(parts[3], 10);
 		var name = parts[1];
@@ -473,11 +476,11 @@ var initiativeHandler = function (params) {
 	};
 	var check = function () {
 		var name = parts[1];
-		var output = tracker[name].initiative + ' ' + name + '('  + tracker[name].motes + '/' + tracker[name].maxMotes + ')';
+		var output = tracker[name].initiative + ' ' + name + '('  + tracker[name].motes + '/' + tracker[name].maxmotes + ')';
 		sendMessage(output);
 	};
 	var help = function () {
-		var output = '\nreset\nnext\nadd NAME [INITIATIVE]\nlist\ncheck NAME\nset NAME TRAIT VALUE\nmodify NAME TRAIT AMOUNT\nwithering ATTACKER DEFENDER AMOUNT\ndelete NAME\nundo\nredo\nhelp';
+		var output = '\nreset\nnext\nadd NAME [INITIATIVE] [MAXMOTES]\nlist\ncheck NAME\nset NAME TRAIT VALUE\nmodify NAME TRAIT AMOUNT\nwithering ATTACKER DEFENDER AMOUNT\ndelete NAME\nundo\nredo\nhelp';
 		sendMessage(output);
 	};
 	try {
