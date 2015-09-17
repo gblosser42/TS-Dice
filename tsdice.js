@@ -15,6 +15,7 @@ var tracker = {};
 var back = [];
 var forward = [];
 var output = '';
+var currentActors = [];
 
 var exaltedDice = function (message) {
 	var dice = message.match(/([0-9]+)e/);
@@ -23,6 +24,7 @@ var exaltedDice = function (message) {
 	var target = message.match(/t([0-9]+)/);
 	var auto = message.match(/(\+|-)([0-9]+)/);
 	var count = message.match(/c([0-9]+)/);
+	var cascade = message.match(/!/);
 	var result;
 	var builder = '';
 	var successes = 0;
@@ -66,6 +68,9 @@ var exaltedDice = function (message) {
 			result = 10;
 		}
 		if (result >= target) {
+			if (cascade) {
+				dice += 1;
+			}
 			successes += 1;
 		}
 		if (count) {
@@ -226,6 +231,14 @@ var initiativeHandler = function (params) {
 			});
 		});
 	};
+	var decodeInitiative = function (str) {
+		if (parseInt(str,10).toString() !== 'NaN') {
+			return parseInt(str,10);
+		} else {
+			str = str.replace(/\[b]/g,'').replace(/\[i]/g,'');
+			return parseInt(str,10);
+		}
+	};
 	var reset = function () {
 		var oldTracker = JSON.parse(JSON.stringify(tracker));
 		tracker = {};
@@ -256,6 +269,7 @@ var initiativeHandler = function (params) {
 			}
 		});
 		if (active.length > 0) {
+			currentActors = active;
 			output = highest + ':';
 			active.forEach(function (actor) {
 				actor.acted = true;
@@ -285,6 +299,7 @@ var initiativeHandler = function (params) {
 			});
 		} else {
 			sendMessage('NEW TURN');
+			currentActors = [];
 			Object.keys(tracker).forEach(function (actorId) {
 				var actor = tracker[actorId];
 				actor.acted = false;
@@ -349,13 +364,31 @@ var initiativeHandler = function (params) {
 		var output = [],
 		toPrint = '';
 		Object.keys(tracker).forEach(function (name) {
-			var data = tracker[name].initiative + ' ' + name;
-			if (tracker[name].maxMotes > 0) {
-				data += '('  + tracker[name].motes + '/' + tracker[name].maxMotes + ')';
+			var actor = tracker[name];
+			var data = '';
+			var isActive = false;
+			currentActors.forEach(function(act){
+				if (act.name === actor.name) {
+					isActive = true;
+				}
+			});
+			if (isActive) {
+				data += '[b]';
+			} else if (actor.acted) {
+				data += '[i]';
+			}
+			data += actor.initiative + ' ' + name;
+			if (actor.maxMotes > 0) {
+				data += '('  + actor.motes + '/' + actor.maxMotes + ')';
+			}
+			if (isActive) {
+				data += '[/b]';
+			} else if (actor.acted) {
+				data += '[/i]';
 			}
 			output.push(data);
 		});
-		output.sort(function (a, b) { return parseFloat(b.split(' ')[0]) - parseFloat(a.split(' ')[0]) });
+		output.sort(function (a, b) { return decodeInitiative(b.split(' ')[0]) - decodeInitiative(a.split(' ')[0]) });
 		output.forEach(function (val) {
 			toPrint += val + '\n';
 		});
