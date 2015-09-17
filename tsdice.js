@@ -194,6 +194,119 @@ var baseDice = function (message) {
 	return builder + '\n' + '[b]TOTAL: ' + total + '[/b]';
 };
 
+var shadowrunDice = function (message) {
+	var dice = message.match(/([0-9]+)s/);
+	var edge = message.match(/e/);
+	var auto = message.match(/(\+|-)([0-9]+)/);
+	var result;
+	var builder = '';
+	var successes = 0;
+	var sucDice = 0;
+	if (dice) {
+		dice = parseInt(dice[1], 10);
+	} else {
+		dice = 0;
+	}
+	if (auto) {
+		auto = parseInt(auto[0], 10);
+	} else {
+		auto = 0;
+	}
+	while (dice > 0) {
+		result = Math.floor(Math.random() * 6);
+		if (result === 0) {
+			result = 6;
+		}
+		if (result >= 5) {
+			successes += 1;
+		}
+		if (result === 6 && !!edge) {
+			dice += 1;
+			sucDice += 1;
+		}
+		if (result === 1) {
+			builder += '[b][color=Red]' + result + '[/color][/b]';
+		} else if (result >= 6) {
+			builder += '[b][color=Green]' + result + '[/color][/b]';
+		} else  if (result >= 5) {
+			builder += '[color=Green]' + result + '[/color]';
+		} else {
+			builder += result;
+		}
+		dice -= 1;
+		if (dice > 0) {
+			builder += ',';
+		}
+	}
+	successes += auto;
+	return builder + '\n' + '[b]SUCCESSES: ' + successes + '(' + sucDice + ')[/b]';
+};
+
+var l5rDice = function (message) {
+	var dice = message.match(/([0-9]+)k/);
+	var keep = message.match(/k([0-9]+)/);
+	var explode = message.match(/e([0-9]+)/);
+	var auto = message.match(/(\+|-)([0-9]+)/);
+	var results = [];
+	var total = 0;
+	var final = 0;
+	var highest = 0;
+	var highIndex = 0;
+	var result;
+	var builder = '';
+	if (dice) {
+		dice = parseInt(dice[1], 10);
+	} else {
+		dice = 0;
+	}
+	if (keep) {
+		keep = parseInt(keep[1], 10);
+	} else {
+		keep = 1;
+	}
+	if (explode) {
+		explode = parseInt(explode[1], 10);
+	} else {
+		explode = 10;
+	}
+	if (auto) {
+		auto = parseInt(auto[0], 10);
+	} else {
+		auto = 0;
+	}
+	while (dice > 0) {
+		total = 0;
+		do {
+			result = Math.floor(Math.random() * 10) + 1;
+			total += result;
+		} while (result >= explode);
+		results.push(total);
+		dice -= 1;
+		if (dice > 0) {
+			builder += ',';
+		}
+	}
+	while (keep > 0) {
+		highest = 0;
+		highIndex = 0;
+		results.forEach(function (res, index) {
+			if (res > highest) {
+				highest = res;
+				highIndex = index;
+			}
+		});
+		final += highest;
+		if (highest >= explode) {
+			results[highIndex] = '[b]' + results[highIndex] + '[/b]';
+		}
+		results[highIndex] = '[color=Green]' + results[highIndex] + '[/color]';
+		keep -= 1;
+	}
+	final += auto;
+	builder = results.join(',');
+	return builder + '\n' + '[b]TOTAL: ' + final + '[/b]';
+};
+
 var keepAlive = function () {
 	cl.send('channellist', function(err, response){
 				setTimeout(keepAlive, 120000);
@@ -540,12 +653,16 @@ var diceHandler = function (params) {
 	var target = params.target ? params.invokerid : cid;
 	var msg = '';
 	if (msgParts && params.invokerid !== clid) {
-		if (msgParts[1].match(/[0-9]+?e/)) {
+		if (msgParts[1].match(/^[0-9]+?e/)) {
 			result = exaltedDice(msgParts[1]);
-		} else if (msgParts[1].match(/[0-9]+?w/)) {
+		} else if (msgParts[1].match(/^[0-9]+?w/)) {
 			result = wodDice(msgParts[1]);
-		} else if (msgParts[1].match(/[0-9]+?d/)) {
+		} else if (msgParts[1].match(/^[0-9]+?d/)) {
 			result = baseDice(msgParts[1]);
+		} else if (msgParts[1].match(/^[0-9]+?s/)) {
+			result = shadowrunDice(msgParts[1]);
+		} else if (msgParts[1].match(/^[0-9]+?k/)) {
+			result = l5rDice(msgParts[1]);
 		}
 		if (result) {
 			labelStart = params.msg.indexOf(' ') + 1;
