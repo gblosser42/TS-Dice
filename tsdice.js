@@ -1,6 +1,9 @@
 'use strict';
 var Client = require('node-teamspeak');
 
+/**
+  * @type {{server: string, username: string, password: string, parent: string}}
+ */
 var config = require('./config.json');
 var cl = new Client(config.server);
 var uid = config.username;
@@ -308,7 +311,7 @@ var l5rDice = function (message) {
 };
 
 var keepAlive = function () {
-	cl.send('channellist', function(err, response){
+	cl.send('channellist', function(){
 				setTimeout(keepAlive, 120000);
 			});
 };
@@ -328,6 +331,9 @@ var welcome = function (params) {
 	}, function (err, response) {});
 };
 
+/**
+ * @param {{invokername: string, msg: string}} params
+ */
 var initiativeHandler = function (params) {
 	var raw = params.msg.substr(1);
 	var parts = raw.split(' ');
@@ -342,7 +348,7 @@ var initiativeHandler = function (params) {
 		cl.send('clientupdate', {clid: clid, client_nickname: 'Initiative'}, function () {
 			cl.send('sendtextmessage', {
 				targetmode: 2, msg: msg
-			}, function (err, response) {
+			}, function () {
 				cl.send('clientupdate', {clid: clid, client_nickname: 'Dice Roller'}, function () {});
 			});
 		});
@@ -643,6 +649,9 @@ var initiativeHandler = function (params) {
 	}
 };
 
+/**
+ * @param {{target: string, invokerid: number, msg: string, invokername: string, targetmode: number}} params
+ */
 var diceHandler = function (params) {
 	var msgParts = params.msg.toString().match(/\(([0-9].+?)\)/);
 	var result;
@@ -684,11 +693,11 @@ var diceHandler = function (params) {
 			cl.send('clientupdate', {clid: clid, client_nickname: firstPart}, function () {
 				cl.send('sendtextmessage', {
 					targetmode: params.targetmode, target: target, msg: msg
-				}, function (err, response) {
+				}, function () {
 					if (params.targetmode === 1 && target !== storyteller && storyteller !== undefined) {
 						cl.send('sendtextmessage', {
 							targetmode: 1, target: storyteller, msg: msg
-						}, function (err, response) {
+						}, function () {
 							cl.send('clientupdate', {clid: clid, client_nickname: 'Dice Roller'}, function () {});
 						});
 					} else {
@@ -701,13 +710,18 @@ var diceHandler = function (params) {
 	}
 };
 
-cl.send('login', {client_login_name: uid, client_login_password: config.password}, function(err, response){
+cl.send('login', {client_login_name: uid, client_login_password: config.password},
+	/**
+	 * @param err
+	 * @param {{client_id: number}}response
+	 */
+	function(err, response){
 	console.log(err,response);
-	cl.send('use', {sid: 1}, function(err, response){
+	cl.send('use', {sid: 1}, function(){
 		cl.send('whoami', function (err, response) {
 			clid = response.client_id;
-			cl.send('clientupdate', {clid: clid, client_nickname: 'Dice Roller'}, function (err, response) {
-				cl.send('servernotifyregister', {event: 'textchannel', id:0}, function(err, response){
+			cl.send('clientupdate', {clid: clid, client_nickname: 'Dice Roller'}, function () {
+				cl.send('servernotifyregister', {event: 'textchannel', id:0}, function(){
 					cl.on('textmessage', function (params) {
 						if (params.msg) {
 							if (params.msg.toString().match(/^!/)) {
@@ -720,8 +734,12 @@ cl.send('login', {client_login_name: uid, client_login_password: config.password
 					});
 					keepAlive();
 				});
-				cl.send('servernotifyregister', {event: 'channel', id:0}, function(err, response){
-					cl.on('channelcreated', function (params) {
+				cl.send('servernotifyregister', {event: 'channel', id:0}, function(){
+					cl.on('channelcreated',
+						/**
+						 * @param {{cpid: number, cid: number}} params
+						 */
+						function (params) {
 						if (params.cpid === pid && cid === 1) {
 							cl.send('clientmove', {clid: clid, cid: params.cid}, function () {
 								cid = params.cid;
@@ -730,13 +748,21 @@ cl.send('login', {client_login_name: uid, client_login_password: config.password
 					});
 				});
 				cl.send('servernotifyregister', {event: 'textprivate', id:0}, function (err, response) {});
-				cl.on('clientmoved', function (params) {
+				cl.on('clientmoved',
+					/**
+					 * @param {{ctid: number}}params
+					 */
+					function (params) {
 					if (params.ctid === cid) {
 						welcome(params);
 					}
 				});
 				cl.send('channellist', function(err, response){
-					response.forEach(function(channel){
+					response.forEach(
+						/**
+						 * @param {{channel_name: string, cid: number}}channel
+						 */
+						function(channel){
 						if (channel.channel_name === config.parent) {
 							pid = channel.cid;
 						}
