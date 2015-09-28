@@ -684,6 +684,8 @@ var initiativeHandler = function (params) {
 		sendMessage(output);
 	};
 	try {
+		console.log(command);
+		console.log(parts);
 		switch (command) {
 			case 'reset':
 				reset();
