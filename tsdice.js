@@ -17,6 +17,7 @@ var back = [];
 var forward = [];
 var output = '';
 var currentActors = [];
+var duelStep;
 
 var exaltedDice = function (message) {
 	var dice = message.match(/([0-9]+)e/);
@@ -245,10 +246,11 @@ var shadowrunDice = function (message) {
 	return builder + '\n' + '[b]SUCCESSES: ' + successes + '(' + sucDice + ')[/b]';
 };
 
-var l5rDice = function (message) {
+var l5rDice = function (message, name, label) {
 	var dice = message.match(/([0-9]+)k/);
 	var keep = message.match(/k([0-9]+)/);
 	var explode = message.match(/e([0-9]+)/);
+	var reroll = message.match(/r([0-9]+)/);
 	var auto = message.match(/(\+|-)([0-9]+)/);
 	var results = [];
 	var total = 0;
@@ -272,6 +274,11 @@ var l5rDice = function (message) {
 	} else {
 		explode = 10;
 	}
+	if (reroll) {
+		reroll = reroll[1];
+	} else {
+		reroll = '';
+	}
 	if (auto) {
 		auto = parseInt(auto[0], 10);
 	} else {
@@ -280,7 +287,13 @@ var l5rDice = function (message) {
 	while (dice > 0) {
 		total = 0;
 		do {
-			result = Math.floor(Math.random() * 10) + 1;
+			result = Math.floor(Math.random() * 10);
+			if (reroll.indexOf(result.toString()) > -1) {
+				result = Math.floor(Math.random() * 10);
+			}
+			if (result === 0) {
+				result = 10;
+			}
 			total += result;
 		} while (result >= explode);
 		results.push(total);
@@ -306,6 +319,9 @@ var l5rDice = function (message) {
 		keep -= 1;
 	}
 	final += auto;
+	if (typeof duelStep === 'function') {
+		duelStep(name, label, final);
+	}
 	builder = results.join(',');
 	return builder + '\n' + '[b]TOTAL: ' + final + '[/b]';
 };
@@ -341,11 +357,19 @@ var initiativeHandler = function (params) {
 	var highest = -9999999;
 	if (parts[1]) {
 		if (parts[1].toLowerCase() === 'me' || parts[1].toLowerCase() === 'my') {
-			parts[1] = params.invokername;
+			parts[1] = params.invokername.replace(/ /g,'');
 		}
 	}
-	var sendMessage = function (msg) {
-		cl.send('clientupdate', {clid: clid, client_nickname: 'Initiative'}, function () {
+	if (parts[2]) {
+		if (parts[2].toLowerCase() === 'me' || parts[2].toLowerCase() === 'my') {
+			parts[2] = params.invokername.replace(/ /g,'');
+		}
+	}
+	var sendMessage = function (msg, name) {
+		if (!name) {
+			name = 'Initiative';
+		}
+		cl.send('clientupdate', {clid: clid, client_nickname: name}, function () {
 			cl.send('sendtextmessage', {
 				targetmode: 2, msg: msg
 			}, function () {
@@ -360,6 +384,63 @@ var initiativeHandler = function (params) {
 			str = str.replace(/\[b]/g,'').replace(/\[i]/g,'');
 			return parseInt(str,10);
 		}
+	};
+	var duel = function () {
+		var playera = parts[1];
+		var playerb = parts[2];
+		var aresult;
+		var bresult;
+		var name = 'Duel';
+		sendMessage('Starting a duel between ' + playera + ' and ' + playerb, name);
+		sendMessage('Each participant, roll Iaijutsu (Assessment) / Awareness vs TN 10+ opponent’s Insight Rank x 5. Success grants one piece of information, plus one per raise declared. If you beat your opponent’s roll by 10 or more, whether or not it gained any information, you gain +1k1 on your Focus Roll.', name);
+		duelStep = function (invoker, label, result) {
+			var message = '';
+			if (invoker === playera || label.indexOf(playera) > -1) {
+				console.log('Aresult set');
+				aresult = result;
+			}
+			if (invoker === playerb || label.indexOf(playerb) > -1) {
+				console.log('Bresult set');
+				bresult = result;
+			}
+			if (aresult && bresult) {
+				if (aresult >= (bresult + 10)) {
+					message = playera + ' won by at least 10, so gains 1k1 to the next step.';
+				} else if (bresult >= (aresult + 10)) {
+					message = playerb + ' won by at least 10, so gains 1k1 to the next step.';
+				}
+				sendMessage(message, name);
+				sendMessage('Each participant, make a contested Iaijutsu (Focus) / Void roll. If you win by 5 or more you strike first, for every 5 you beat your opponent you gain one free raise on the strike roll. If nobody wins by at least 5, it is a kharmic strike and both attack at once.', name);
+				aresult = 0;
+				bresult = 0;
+				duelStep = function (invoker, label, result) {
+					var message = '';
+					if (invoker === playera || label.indexOf(playera) > -1) {
+						aresult = result;
+					}
+					if (invoker === playerb || label.indexOf(playerb) > -1) {
+						bresult = result;
+					}
+					if (aresult && bresult) {
+						if (aresult >= (bresult + 5)) {
+							message = playera + ' won by at least 5, so strikes first.';
+							if (aresult - (bresult + 5) >= 5) {
+								message += ' They also receive ' + Math.floor((aresult - (bresult + 5)) / 5) + ' free raises on the attack.';
+							}
+						} else if (bresult >= (aresult + 5)) {
+							message = playerb + ' won by at least 5, so strikes first.';
+							if (bresult - (aresult + 5) >= 5) {
+								message += ' They also receive ' + Math.floor((bresult - (aresult + 5)) / 5) + ' free raises on the attack.';
+							}
+						} else {
+							message = 'KHARMIC STRIKE!';
+						}
+						sendMessage(message,name);
+						duelStep = undefined;
+					}
+				}
+			}
+		};
 	};
 	var reset = function () {
 		var oldTracker = JSON.parse(JSON.stringify(tracker));
@@ -599,7 +680,7 @@ var initiativeHandler = function (params) {
 		sendMessage(output);
 	};
 	var help = function () {
-		var output = '\nreset\nnext\nadd NAME [INITIATIVE] [MAXMOTES]\nlist\ncheck NAME\nset NAME TRAIT VALUE\nmodify NAME TRAIT AMOUNT\nwithering ATTACKER DEFENDER AMOUNT\ndelete NAME\nundo\nredo\nhelp';
+		var output = '\nreset\nnext\nadd NAME [INITIATIVE] [MAXMOTES]\nlist\ncheck NAME\nset NAME TRAIT VALUE\nmodify NAME TRAIT AMOUNT\nwithering ATTACKER DEFENDER AMOUNT\ndelete NAME\nundo\nredo\nduel [NAME1] [NAME2]\nhelp';
 		sendMessage(output);
 	};
 	try {
@@ -641,6 +722,9 @@ var initiativeHandler = function (params) {
 			case 'help':
 				help();
 				break;
+			case 'duel':
+				duel();
+				break;
 			case 'default':
 				sendMessage('Not Recognized Command');
 		}
@@ -662,6 +746,20 @@ var diceHandler = function (params) {
 	var target = params.target ? params.invokerid : cid;
 	var msg = '';
 	if (msgParts && params.invokerid !== clid) {
+		labelStart = params.msg.indexOf(' ') + 1;
+		if (params.msg.length > 30 && labelStart > 0) {
+			firstPart = params.msg.substring(labelStart, 30 + labelStart);
+			remainder = params.msg.substring(30 + labelStart);
+			diceCode = params.msg.substring(0, labelStart);
+		} else {
+			if (labelStart > 0) {
+				firstPart = params.msg.substring(labelStart);
+				diceCode = params.msg.substring(0, labelStart);
+			} else {
+				firstPart = 'Dice Roller';
+				diceCode = params.msg;
+			}
+		}
 		if (msgParts[1].match(/^[0-9]+?e/)) {
 			result = exaltedDice(msgParts[1]);
 		} else if (msgParts[1].match(/^[0-9]+?w/)) {
@@ -671,23 +769,9 @@ var diceHandler = function (params) {
 		} else if (msgParts[1].match(/^[0-9]+?s/)) {
 			result = shadowrunDice(msgParts[1]);
 		} else if (msgParts[1].match(/^[0-9]+?k/)) {
-			result = l5rDice(msgParts[1]);
+			result = l5rDice(msgParts[1], params.invokername, firstPart + remainder);
 		}
 		if (result) {
-			labelStart = params.msg.indexOf(' ') + 1;
-			if (params.msg.length > 30 && labelStart > 0) {
-				firstPart = params.msg.substring(labelStart, 30 + labelStart);
-				remainder = params.msg.substring(30 + labelStart);
-				diceCode = params.msg.substring(0, labelStart);
-			} else {
-				if (labelStart > 0) {
-					firstPart = params.msg.substring(labelStart);
-					diceCode = params.msg.substring(0, labelStart);
-				} else {
-					firstPart = 'Dice Roller';
-					diceCode = params.msg;
-				}
-			}
 			msg = remainder + '\n' + params.invokername +
 				' rolling ' + diceCode + '\n' + result;
 			cl.send('clientupdate', {clid: clid, client_nickname: firstPart}, function () {
