@@ -852,8 +852,7 @@ cl.send('login', {client_login_name: uid, client_login_password: config.password
 						if (channel.channel_name === config.parent) {
 							pid = channel.cid;
 						}
-						if (channel.channel_name.toLowerCase() === 'slow damnation' ||
-							channel.channel_name.toLowerCase() === 'all dreams must end') {
+						if (config.channels.indexOf(channel.channel_name.toLowerCase()) > -1) {
 							cl.send('clientmove', {clid: clid, cid: channel.cid}, function () {
 								cid = channel.cid;
 								cl.send('clientlist', {cid:cid}, function (err, response) {
@@ -862,14 +861,14 @@ cl.send('login', {client_login_name: uid, client_login_password: config.password
 											response.forEach(function (client) {
 												welcome({clid: client.clid});
 												welcome({clid: client.clid});
-												if (client.client_nickname.toLowerCase() === 'storyteller' || client.client_nickname.toLowerCase() === 'lord of chaos') {
+												if (client.client_nickname.toLowerCase() === 'storyteller') {
 													storyteller = client.clid;
 												}
 											});
 										} else {
 											welcome({clid: response.clid});
 											welcome({clid: response.clid});
-											if (response.client_nickname.toLowerCase() === 'storyteller' || response.client_nickname.toLowerCase() === 'lord of chaos') {
+											if (response.client_nickname.toLowerCase() === 'storyteller') {
 												storyteller = response.clid;
 											}
 										}
