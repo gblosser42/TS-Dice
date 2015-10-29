@@ -8,6 +8,7 @@ var back = [];
 var forward = [];
 var output = '';
 var currentActors = [];
+var activeChannels = '';
 
 var exaltedDice = function (message) {
 	var dice = message.match(/([0-9]+)e/);
@@ -722,31 +723,39 @@ mybot.on('message', function(message) {
 	var result;
 	console.log(message);
 	var msg = message.content.match(/\((.+)\)/);
-	if (msg) {
-		if (msg[1].match(/^[0-9]+?e/)) {
-			console.log('exalted');
-			result = exaltedDice(msg[1]);
-		} else if (msg[1].match(/^[0-9]+?w/)) {
-			console.log('wod');
-			result = wodDice(msg[1]);
-		} else if (msg[1].match(/^[0-9]+?d/)) {
-			console.log('base');
-			result = baseDice(msg[1]);
-		} else if (msg[1].match(/^[0-9]+?s/)) {
-			console.log('shadowrun');
-			result = shadowrunDice(msg[1]);
-		} else if (msg[1].match(/^[0-9]+?k/)) {
-			console.log('l5r');
-			result = l5rDice(msg[1]);
-		} else if (msg[1]==='fudge') {
-			console.log('fudge');
-			result = fudgeDice();
+	if (message.content === '!startDice') {
+		if (activeChannels.indexOf(message.channel.name) === -1) {
+			activeChannels+=message.channel.name;
 		}
-		if(result) {
-			mybot.reply(message,result);
+	} else if (message.content === '!stopDice') {
+		activeChannels.replace(message.channel.name,'');
+	} else if (activeChannels.indexOf(message.channel.name) > -1) {
+		if (msg) {
+			if (msg[1].match(/^[0-9]+?e/)) {
+				console.log('exalted');
+				result = exaltedDice(msg[1]);
+			} else if (msg[1].match(/^[0-9]+?w/)) {
+				console.log('wod');
+				result = wodDice(msg[1]);
+			} else if (msg[1].match(/^[0-9]+?d/)) {
+				console.log('base');
+				result = baseDice(msg[1]);
+			} else if (msg[1].match(/^[0-9]+?s/)) {
+				console.log('shadowrun');
+				result = shadowrunDice(msg[1]);
+			} else if (msg[1].match(/^[0-9]+?k/)) {
+				console.log('l5r');
+				result = l5rDice(msg[1]);
+			} else if (msg[1] === 'fudge') {
+				console.log('fudge');
+				result = fudgeDice();
+			}
+			if (result) {
+				mybot.reply(message, result);
+			}
+		} else if (message.content.match(/^!/)) {
+			initiativeHandler(message);
 		}
-	} else if (message.content.match(/^!/)) {
-		initiativeHandler(message);
 	}
 });
 
