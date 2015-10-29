@@ -1,23 +1,13 @@
-'use strict';
-var Client = require('node-teamspeak');
+var Discord = require('discord.js');
 
-/**
-  * @type {{server: string, username: string, password: string, parent: string}}
- */
-var config = require('./config.json').teamspeak;
-var cl = new Client(config.server);
-var uid = config.username;
-var clid;
-var cid = 1;
-var pid;
-var clientMessageStatus = {};
-var storyteller;
+var mybot = new Discord.Client();
+
+var config = require('./config.json').discord;
 var tracker = {};
 var back = [];
 var forward = [];
 var output = '';
 var currentActors = [];
-var duelStep;
 
 var exaltedDice = function (message) {
 	var dice = message.match(/([0-9]+)e/);
@@ -88,11 +78,11 @@ var exaltedDice = function (message) {
 			successes += 1;
 		}
 		if (result === 1) {
-			builder += '[b][color=Red]' + result + '[/color][/b]';
+			builder += result;
 		} else if (result >= double) {
-			builder += '[b][color=Green]' + result + '[/color][/b]';
+			builder += '**' + result + '**';
 		} else if (result >= target) {
-			builder += '[color=Green]' + result + '[/color]';
+			builder += '*' + result + '*';
 		} else {
 			builder += result;
 		}
@@ -102,7 +92,7 @@ var exaltedDice = function (message) {
 		}
 	}
 	successes += auto;
-	return builder + '\n' + '[b]SUCCESSES: ' + successes + '(' + sucDice + ')[/b]';
+	return builder + '\n' + '**SUCCESSES: ' + successes + '(' + sucDice + ')**';
 };
 
 var wodDice = function (message) {
@@ -141,11 +131,11 @@ var wodDice = function (message) {
 			sucDice += 1;
 		}
 		if (result === 1) {
-			builder += '[b][color=Red]' + result + '[/color][/b]';
+			builder += result;
 		} else if (result >= again) {
-			builder += '[b][color=Green]' + result + '[/color][/b]';
+			builder += '**' + result + '**';
 		} else  if (result >= 8) {
-			builder += '[color=Green]' + result + '[/color]';
+			builder += '*' + result + '*';
 		} else {
 			builder += result;
 		}
@@ -155,7 +145,7 @@ var wodDice = function (message) {
 		}
 	}
 	successes += auto;
-	return builder + '\n' + '[b]SUCCESSES: ' + successes + '(' + sucDice + ')[/b]';
+	return builder + '\n' + '**SUCCESSES: ' + successes + '(' + sucDice + ')**';
 };
 
 var baseDice = function (message) {
@@ -182,9 +172,9 @@ var baseDice = function (message) {
 			result = diceSize;
 		}
 		if (result === 1) {
-			builder += '[b][color=Red]' + result + '[/color][/b]';
+			builder += result;
 		} else if (result === diceSize) {
-			builder += '[b][color=Green]' + result + '[/color][/b]';
+			builder += '**' + result + '**';
 		} else {
 			builder += result;
 		}
@@ -195,7 +185,36 @@ var baseDice = function (message) {
 		}
 	}
 	total += auto;
-	return builder + '\n' + '[b]TOTAL: ' + total + '[/b]';
+	return builder + '\n' + '**TOTAL: ' + total + '**';
+};
+
+var fudgeDice = function () {
+	var dice = 4;
+	var diceSize = 3;
+	var total = 0;
+	var builder = '';
+	var result;
+
+	while (dice > 0) {
+		result = Math.floor(Math.random() * diceSize);
+		switch (result) {
+			case 0:
+				builder+='-';
+				break;
+			case 1:
+				builder+=' ';
+				break;
+			case 2:
+				builder+='+';
+				break;
+		}
+		total += (result-1);
+		dice -= 1;
+		if (dice > 0) {
+			builder += ',';
+		}
+	}
+	return builder + '\n' + '**TOTAL: ' + total + '**';
 };
 
 var shadowrunDice = function (message) {
@@ -229,11 +248,11 @@ var shadowrunDice = function (message) {
 			sucDice += 1;
 		}
 		if (result === 1) {
-			builder += '[b][color=Red]' + result + '[/color][/b]';
+			builder += result;
 		} else if (result >= 6) {
-			builder += '[b][color=Green]' + result + '[/color][/b]';
+			builder += '**' + result + '**';
 		} else  if (result >= 5) {
-			builder += '[color=Green]' + result + '[/color]';
+			builder += '*' + result + '*';
 		} else {
 			builder += result;
 		}
@@ -243,10 +262,10 @@ var shadowrunDice = function (message) {
 		}
 	}
 	successes += auto;
-	return builder + '\n' + '[b]SUCCESSES: ' + successes + '(' + sucDice + ')[/b]';
+	return builder + '\n' + '**SUCCESSES: ' + successes + '(' + sucDice + ')**';
 };
 
-var l5rDice = function (message, name, label) {
+var l5rDice = function (message) {
 	var dice = message.match(/([0-9]+)k/);
 	var keep = message.match(/k([0-9]+)/);
 	var explode = message.match(/e([0-9]+)/);
@@ -313,135 +332,99 @@ var l5rDice = function (message, name, label) {
 		});
 		final += highest;
 		if (highest >= explode) {
-			results[highIndex] = '[b]' + results[highIndex] + '[/b]';
+			results[highIndex] = '**' + results[highIndex] + '**';
 		}
-		results[highIndex] = '[color=Green]' + results[highIndex] + '[/color]';
+		results[highIndex] = '*' + results[highIndex] + '*';
 		keep -= 1;
 	}
 	final += auto;
-	if (typeof duelStep === 'function') {
-		duelStep(name, label, final);
-	}
 	builder = results.join(',');
-	return builder + '\n' + '[b]TOTAL: ' + final + '[/b]';
+	return builder + '\n' + '**TOTAL: ' + final + '**';
 };
 
-var keepAlive = function () {
-	cl.send('channellist', function(){
-				setTimeout(keepAlive, 120000);
-			});
-};
-
-var welcome = function (params) {
-	var target = params.clid;
-	var msg = 'Welcome! I am the Dice Bot!';
-	if (clientMessageStatus[target] === undefined) {
-		clientMessageStatus[target] = 0;
-	}
-	if (clientMessageStatus[target] % 2 === 1) {
-		msg = 'You can send me any dice commands in this window, and I will roll them in secret and send the results to you and the Storyteller';
-	}
-	clientMessageStatus[target] += 1;
-	cl.send('sendtextmessage', {
-		targetmode: 1, target: target, msg: msg
-	}, function (err, response) {});
-};
-
-/**
- * @param {{invokername: string, msg: string}} params
- */
-var initiativeHandler = function (params) {
-	var raw = params.msg.substr(1);
+var initiativeHandler = function (message) {
+	var raw = message.content.substr(1);
 	var parts = raw.split(' ');
 	var command = parts[0];
 	var highest = -9999999;
 	if (parts[1]) {
 		if (parts[1].toLowerCase() === 'me' || parts[1].toLowerCase() === 'my') {
-			parts[1] = params.invokername.replace(/ /g,'');
+			parts[1] = message.author.username.replace(/ /g,'');
 		}
 	}
 	if (parts[2]) {
 		if (parts[2].toLowerCase() === 'me' || parts[2].toLowerCase() === 'my') {
-			parts[2] = params.invokername.replace(/ /g,'');
+			parts[2] = message.author.username.replace(/ /g,'');
 		}
 	}
-	var sendMessage = function (msg, name) {
-		if (!name) {
-			name = 'Initiative';
-		}
-		cl.send('clientupdate', {clid: clid, client_nickname: name}, function () {
-			cl.send('sendtextmessage', {
-				targetmode: 2, msg: msg
-			}, function () {
-				cl.send('clientupdate', {clid: clid, client_nickname: 'Dice Roller'}, function () {});
-			});
-		});
+	var sendMessage = function (msg) {
+		mybot.reply(message,msg);
 	};
 	var decodeInitiative = function (str) {
 		if (parseInt(str,10).toString() !== 'NaN') {
 			return parseInt(str,10);
 		} else {
-			str = str.replace(/\[b]/g,'').replace(/\[i]/g,'');
+			str = str.replace(/\**/g,'').replace(/\*/g,'');
 			return parseInt(str,10);
 		}
 	};
-	var duel = function () {
-		var playera = parts[1];
-		var playerb = parts[2];
-		var aresult;
-		var bresult;
-		var name = 'Duel';
-		sendMessage('Starting a duel between ' + playera + ' and ' + playerb, name);
-		sendMessage('Each participant, roll Iaijutsu (Assessment) / Awareness vs TN 10+ opponent’s Insight Rank x 5. Success grants one piece of information, plus one per raise declared. If you beat your opponent’s roll by 10 or more, whether or not it gained any information, you gain +1k1 on your Focus Roll.', name);
-		duelStep = function (invoker, label, result) {
-			var message = '';
-			if (invoker === playera || label.indexOf(playera) > -1) {
-				console.log('Aresult set');
-				aresult = result;
-			}
-			if (invoker === playerb || label.indexOf(playerb) > -1) {
-				console.log('Bresult set');
-				bresult = result;
-			}
-			if (aresult && bresult) {
-				if (aresult >= (bresult + 10)) {
-					message = playera + ' won by at least 10, so gains 1k1 to the next step.';
-				} else if (bresult >= (aresult + 10)) {
-					message = playerb + ' won by at least 10, so gains 1k1 to the next step.';
-				}
-				sendMessage(message, name);
-				sendMessage('Each participant, make a contested Iaijutsu (Focus) / Void roll. If you win by 5 or more you strike first, for every 5 you beat your opponent you gain one free raise on the strike roll. If nobody wins by at least 5, it is a kharmic strike and both attack at once.', name);
-				aresult = 0;
-				bresult = 0;
-				duelStep = function (invoker, label, result) {
-					var message = '';
-					if (invoker === playera || label.indexOf(playera) > -1) {
-						aresult = result;
-					}
-					if (invoker === playerb || label.indexOf(playerb) > -1) {
-						bresult = result;
-					}
-					if (aresult && bresult) {
-						if (aresult >= (bresult + 5)) {
-							message = playera + ' won by at least 5, so strikes first.';
-							if (aresult - (bresult + 5) >= 5) {
-								message += ' They also receive ' + Math.floor((aresult - (bresult + 5)) / 5) + ' free raises on the attack.';
-							}
-						} else if (bresult >= (aresult + 5)) {
-							message = playerb + ' won by at least 5, so strikes first.';
-							if (bresult - (aresult + 5) >= 5) {
-								message += ' They also receive ' + Math.floor((bresult - (aresult + 5)) / 5) + ' free raises on the attack.';
-							}
-						} else {
-							message = 'KHARMIC STRIKE!';
-						}
-						sendMessage(message,name);
-						duelStep = undefined;
-					}
-				}
-			}
-		};
-	};
+	//var duel = function () {
+	//	var playera = parts[1];
+	//	var playerb = parts[2];
+	//	var aresult;
+	//	var bresult;
+	//	var name = 'Duel';
+	//	sendMessage('Starting a duel between ' + playera + ' and ' + playerb, name);
+	//	sendMessage('Each participant, roll Iaijutsu (Assessment) / Awareness vs TN 10+ opponent’s Insight Rank x 5. Success grants one piece of information, plus one per raise declared. If you beat your opponent’s roll by 10 or more, whether or not it gained any information, you gain +1k1 on your Focus Roll.', name);
+	//	duelStep = function (invoker, label, result) {
+	//		var message = '';
+	//		if (invoker === playera || label.indexOf(playera) > -1) {
+	//			console.log('Aresult set');
+	//			aresult = result;
+	//		}
+	//		if (invoker === playerb || label.indexOf(playerb) > -1) {
+	//			console.log('Bresult set');
+	//			bresult = result;
+	//		}
+	//		if (aresult && bresult) {
+	//			if (aresult >= (bresult + 10)) {
+	//				message = playera + ' won by at least 10, so gains 1k1 to the next step.';
+	//			} else if (bresult >= (aresult + 10)) {
+	//				message = playerb + ' won by at least 10, so gains 1k1 to the next step.';
+	//			}
+	//			sendMessage(message, name);
+	//			sendMessage('Each participant, make a contested Iaijutsu (Focus) / Void roll. If you win by 5 or more you strike first, for every 5 you beat your opponent you gain one free raise on the strike roll. If nobody wins by at least 5, it is a kharmic strike and both attack at once.', name);
+	//			aresult = 0;
+	//			bresult = 0;
+	//			duelStep = function (invoker, label, result) {
+	//				var message = '';
+	//				if (invoker === playera || label.indexOf(playera) > -1) {
+	//					aresult = result;
+	//				}
+	//				if (invoker === playerb || label.indexOf(playerb) > -1) {
+	//					bresult = result;
+	//				}
+	//				if (aresult && bresult) {
+	//					if (aresult >= (bresult + 5)) {
+	//						message = playera + ' won by at least 5, so strikes first.';
+	//						if (aresult - (bresult + 5) >= 5) {
+	//							message += ' They also receive ' + Math.floor((aresult - (bresult + 5)) / 5) + ' free raises on the attack.';
+	//						}
+	//					} else if (bresult >= (aresult + 5)) {
+	//						message = playerb + ' won by at least 5, so strikes first.';
+	//						if (bresult - (aresult + 5) >= 5) {
+	//							message += ' They also receive ' + Math.floor((bresult - (aresult + 5)) / 5) + ' free raises on the attack.';
+	//						}
+	//					} else {
+	//						message = 'KHARMIC STRIKE!';
+	//					}
+	//					sendMessage(message,name);
+	//					duelStep = undefined;
+	//				}
+	//			}
+	//		}
+	//	};
+	//};
 	var reset = function () {
 		var oldTracker = JSON.parse(JSON.stringify(tracker));
 		tracker = {};
@@ -481,7 +464,7 @@ var initiativeHandler = function (params) {
 				if (actor.maxmotes > 0) {
 					output += '('  + actor.motes + '/' + actor.maxmotes + ')';
 				}
-				 output += ',';
+				output += ',';
 			});
 			output = output.replace(/,$/, '');
 			sendMessage(output);
@@ -565,7 +548,7 @@ var initiativeHandler = function (params) {
 	};
 	var list = function () {
 		var output = [],
-		toPrint = '';
+			toPrint = '';
 		Object.keys(tracker).forEach(function (name) {
 			var actor = tracker[name];
 			var data = '';
@@ -576,18 +559,18 @@ var initiativeHandler = function (params) {
 				}
 			});
 			if (isActive) {
-				data += '[b]';
+				data += '**';
 			} else if (actor.acted) {
-				data += '[i]';
+				data += '*';
 			}
 			data += actor.initiative + ' ' + name;
 			if (actor.maxmotes > 0) {
 				data += '('  + actor.motes + '/' + actor.maxmotes + ')';
 			}
 			if (isActive) {
-				data += '[/b]';
+				data += '**';
 			} else if (actor.acted) {
-				data += '[/i]';
+				data += '*';
 			}
 			output.push(data);
 		});
@@ -680,7 +663,7 @@ var initiativeHandler = function (params) {
 		sendMessage(output);
 	};
 	var help = function () {
-		var output = '\nreset\nnext\nadd NAME [INITIATIVE] [MAXMOTES]\nlist\ncheck NAME\nset NAME TRAIT VALUE\nmodify NAME TRAIT AMOUNT\nwithering ATTACKER DEFENDER AMOUNT\ndelete NAME\nundo\nredo\nduel [NAME1] [NAME2]\nhelp';
+		var output = '\nreset\nnext\nadd NAME [INITIATIVE] [MAXMOTES]\nlist\ncheck NAME\nset NAME TRAIT VALUE\nmodify NAME TRAIT AMOUNT\nwithering ATTACKER DEFENDER AMOUNT\ndelete NAME\nundo\nredo\nhelp';
 		sendMessage(output);
 	};
 	try {
@@ -725,7 +708,7 @@ var initiativeHandler = function (params) {
 				help();
 				break;
 			case 'duel':
-				duel();
+				//duel();
 				break;
 			case 'default':
 				sendMessage('Not Recognized Command');
@@ -735,150 +718,36 @@ var initiativeHandler = function (params) {
 	}
 };
 
-/**
- * @param {{target: string, invokerid: number, msg: string, invokername: string, targetmode: number}} params
- */
-var diceHandler = function (params) {
-	var msgParts = params.msg.toString().match(/\(([0-9].+?)\)/);
+mybot.on('message', function(message) {
 	var result;
-	var firstPart;
-	var remainder = '';
-	var labelStart = 0;
-	var diceCode = '';
-	var target = params.target ? params.invokerid : cid;
-	var msg = '';
-	if (msgParts && params.invokerid !== clid) {
-		labelStart = params.msg.indexOf(' ') + 1;
-		if (params.msg.length > 30 && labelStart > 0) {
-			firstPart = params.msg.substring(labelStart, 30 + labelStart);
-			remainder = params.msg.substring(30 + labelStart);
-			diceCode = params.msg.substring(0, labelStart);
-		} else {
-			if (labelStart > 0) {
-				firstPart = params.msg.substring(labelStart);
-				diceCode = params.msg.substring(0, labelStart);
-			} else {
-				firstPart = 'Dice Roller';
-				diceCode = params.msg;
-			}
+	console.log(message);
+	var msg = message.content.match(/\((.+)\)/);
+	if (msg) {
+		if (msg[1].match(/^[0-9]+?e/)) {
+			console.log('exalted');
+			result = exaltedDice(msg[1]);
+		} else if (msg[1].match(/^[0-9]+?w/)) {
+			console.log('wod');
+			result = wodDice(msg[1]);
+		} else if (msg[1].match(/^[0-9]+?d/)) {
+			console.log('base');
+			result = baseDice(msg[1]);
+		} else if (msg[1].match(/^[0-9]+?s/)) {
+			console.log('shadowrun');
+			result = shadowrunDice(msg[1]);
+		} else if (msg[1].match(/^[0-9]+?k/)) {
+			console.log('l5r');
+			result = l5rDice(msg[1]);
+		} else if (msg[1]==='fudge') {
+			console.log('fudge');
+			result = fudgeDice();
 		}
-		if (msgParts[1].match(/^[0-9]+?e/)) {
-			result = exaltedDice(msgParts[1]);
-		} else if (msgParts[1].match(/^[0-9]+?w/)) {
-			result = wodDice(msgParts[1]);
-		} else if (msgParts[1].match(/^[0-9]+?d/)) {
-			result = baseDice(msgParts[1]);
-		} else if (msgParts[1].match(/^[0-9]+?s/)) {
-			result = shadowrunDice(msgParts[1]);
-		} else if (msgParts[1].match(/^[0-9]+?k/)) {
-			result = l5rDice(msgParts[1], params.invokername, firstPart + remainder);
+		if(result) {
+			mybot.reply(message,result);
 		}
-		if (result) {
-			msg = remainder + '\n' + params.invokername +
-				' rolling ' + diceCode + '\n' + result;
-			cl.send('clientupdate', {clid: clid, client_nickname: firstPart}, function () {
-				cl.send('sendtextmessage', {
-					targetmode: params.targetmode, target: target, msg: msg
-				}, function () {
-					if (params.targetmode === 1 && target !== storyteller && storyteller !== undefined) {
-						cl.send('sendtextmessage', {
-							targetmode: 1, target: storyteller, msg: msg
-						}, function () {
-							cl.send('clientupdate', {clid: clid, client_nickname: 'Dice Roller'}, function () {});
-						});
-					} else {
-						cl.send('clientupdate', {clid: clid, client_nickname: 'Dice Roller'}, function () {
-						});
-					}
-				});
-			});
-		}
+	} else if (message.content.match(/^!/)) {
+		initiativeHandler(message);
 	}
-};
-
-cl.send('login', {client_login_name: uid, client_login_password: config.password},
-	/**
-	 * @param err
-	 * @param {{client_id: number}}response
-	 */
-	function(err, response){
-	console.log(err,response);
-	cl.send('use', {sid: 1}, function(){
-		cl.send('whoami', function (err, response) {
-			clid = response.client_id;
-			cl.send('clientupdate', {clid: clid, client_nickname: 'Dice Roller'}, function () {
-				cl.send('servernotifyregister', {event: 'textchannel', id:0}, function(){
-					cl.on('textmessage', function (params) {
-						if (params.msg) {
-							if (params.msg.toString().match(/^!/)) {
-								initiativeHandler(params);
-							}
-							else {
-								diceHandler(params);
-							}
-						}
-					});
-					keepAlive();
-				});
-				cl.send('servernotifyregister', {event: 'channel', id:0}, function(){
-					cl.on('channelcreated',
-						/**
-						 * @param {{cpid: number, cid: number}} params
-						 */
-						function (params) {
-						if (params.cpid === pid && cid === 1) {
-							cl.send('clientmove', {clid: clid, cid: params.cid}, function () {
-								cid = params.cid;
-							});
-						}
-					});
-				});
-				cl.send('servernotifyregister', {event: 'textprivate', id:0}, function (err, response) {});
-				cl.on('clientmoved',
-					/**
-					 * @param {{ctid: number}}params
-					 */
-					function (params) {
-					if (params.ctid === cid) {
-						welcome(params);
-					}
-				});
-				cl.send('channellist', function(err, response){
-					response.forEach(
-						/**
-						 * @param {{channel_name: string, cid: number}}channel
-						 */
-						function(channel){
-						if (channel.channel_name === config.parent) {
-							pid = channel.cid;
-						}
-						if (config.channels.indexOf(channel.channel_name.toLowerCase()) > -1) {
-							cl.send('clientmove', {clid: clid, cid: channel.cid}, function () {
-								cid = channel.cid;
-								cl.send('clientlist', {cid:cid}, function (err, response) {
-									if (response) {
-										if (response.forEach) {
-											response.forEach(function (client) {
-												welcome({clid: client.clid});
-												welcome({clid: client.clid});
-												if (client.client_nickname.toLowerCase() === 'storyteller') {
-													storyteller = client.clid;
-												}
-											});
-										} else {
-											welcome({clid: response.clid});
-											welcome({clid: response.clid});
-											if (response.client_nickname.toLowerCase() === 'storyteller') {
-												storyteller = response.clid;
-											}
-										}
-									}
-								});
-							});
-						}
-					});
-				});
-			});
-		});
-	});
 });
+
+mybot.login('gblosser42@gmail.com','ltlocr42');
