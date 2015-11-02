@@ -721,15 +721,14 @@ var initiativeHandler = function (message) {
 
 mybot.on('message', function(message) {
 	var result;
-	console.log(message);
 	var msg = message.content.match(/\((.+)\)/);
 	if (message.content === '!startDice') {
-		if (activeChannels.indexOf(message.channel.name) === -1) {
-			activeChannels+=message.channel.name;
+		if (activeChannels.indexOf(message.channel.id) === -1) {
+			activeChannels+=message.channel.id;
 		}
 	} else if (message.content === '!stopDice') {
-		activeChannels.replace(message.channel.name,'');
-	} else if (activeChannels.indexOf(message.channel.name) > -1) {
+		activeChannels = activeChannels.replace(message.channel.id,'');
+	} else if (activeChannels.indexOf(message.channel.id) > -1) {
 		if (msg) {
 			if (msg[1].match(/^[0-9]+?e/)) {
 				console.log('exalted');
@@ -759,4 +758,4 @@ mybot.on('message', function(message) {
 	}
 });
 
-mybot.login('gblosser42@gmail.com','ltlocr42');
+mybot.login(config.email,config.password);
