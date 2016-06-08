@@ -17,6 +17,7 @@ var back = [];
 var forward = [];
 var output = '';
 var currentActors = [];
+var moves = [];
 var duelStep;
 
 var exaltedDice = function (message) {
@@ -347,6 +348,34 @@ var welcome = function (params) {
 	}, function (err, response) {});
 };
 
+var skMoves = function (params) {
+	var raw = params.msg.substr(4);
+	var out = '';
+	var name = '';
+	if (raw.toLowerCase() === 'flush') {
+		out = moves.join(' | ');
+		moves = [];
+		cl.send('clientupdate', {clid: clid, client_nickname: 'Moves'}, function () {
+			cl.send('sendtextmessage', {
+				targetmode: 2, msg: out
+			}, function () {
+				cl.send('clientupdate', {clid: clid, client_nickname: 'Dice Roller'}, function () {});
+			});
+		});
+	} else if (raw.toLowerCase() === 'reset') {
+		moves = [];
+	} else {
+		if (params.invokername.toLowerCase() !== 'storyteller') {
+			name = params.invokername;
+		} else {
+			raw = raw.split(' ');
+			name = raw.shift();
+			raw = raw.join(' ');
+		}
+		moves.push('[b]' + name + ':[/b] ' + raw);
+	}
+};
+
 /**
  * @param {{invokername: string, msg: string}} params
  */
@@ -481,6 +510,9 @@ var initiativeHandler = function (params) {
 				if (actor.maxmotes > 0) {
 					output += '('  + actor.motes + '/' + actor.maxmotes + ')';
 				}
+				if (actor.body > 0) {
+					output += '[' + tracker[name].body + '|' + tracker[name].mood + ']';
+				}
 				 output += ',';
 			});
 			output = output.replace(/,$/, '');
@@ -534,6 +566,8 @@ var initiativeHandler = function (params) {
 			initiative: parseInt(parts[2], 10) || 0,
 			motes: parseInt(parts[3], 10) || 0,
 			maxmotes: parseInt(parts[3], 10) || 0,
+			body: 0,
+			mood: 0,
 			acted: false
 		};
 		tracker[name] = actor;
@@ -583,6 +617,9 @@ var initiativeHandler = function (params) {
 			data += actor.initiative + ' ' + name;
 			if (actor.maxmotes > 0) {
 				data += '('  + actor.motes + '/' + actor.maxmotes + ')';
+			}
+			if (actor.body > 0) {
+				data += '[' + tracker[name].body + '|' + tracker[name].mood + ']';
 			}
 			if (isActive) {
 				data += '[/b]';
@@ -676,7 +713,7 @@ var initiativeHandler = function (params) {
 	};
 	var check = function () {
 		var name = parts[1];
-		var output = tracker[name].initiative + ' ' + name + '('  + tracker[name].motes + '/' + tracker[name].maxmotes + ')';
+		var output = tracker[name].initiative + ' ' + name + '('  + tracker[name].motes + '/' + tracker[name].maxmotes + ')' + ' [' + tracker[name].body + '|' + tracker[name].mood + ']';
 		sendMessage(output);
 	};
 	var help = function () {
@@ -811,7 +848,11 @@ cl.send('login', {client_login_name: uid, client_login_password: config.password
 					cl.on('textmessage', function (params) {
 						if (params.msg) {
 							if (params.msg.toString().match(/^!/)) {
-								initiativeHandler(params);
+								if (params.msg.toString().match(/^!sk/)) {
+									skMoves(params);
+								} else {
+									initiativeHandler(params);
+								}
 							}
 							else {
 								diceHandler(params);
