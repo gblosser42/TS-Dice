@@ -165,7 +165,8 @@ var baseDice = function (message) {
 	var total = 0;
 	var builder = '';
 	var result;
-	message.split('+').forEach(function(part){
+	var parts = message.split('+')
+	parts.forEach(function(part, index){
 		dice = part.match(/([0-9]+)d([0-9]+)/);
 		if (dice) {
 			diceSize = parseInt(dice[2], 10);
@@ -188,13 +189,55 @@ var baseDice = function (message) {
 			}
 			total += result;
 			dice -= 1;
-			if (dice > 0) {
+			if (dice > 0 || index < parts.length - 1) {
 				builder += ',';
 			}
 		}
 	});
 
 	return builder + '\n' + '[b]TOTAL: ' + total + '[/b]';
+};
+
+var pokeDice = function (message) {
+	var damage = message.match(/([0-9]+)p/);
+	var damageTable = {
+		1: '1d6+1', 
+		15: '4d10+20',
+		2: '1d6+3', 
+		16: '5d10+20',
+		3: '1d6+5', 
+		17: '5d12+25',
+		4: '1d8+6', 
+		18: '6d12+25',
+		5: '1d8+8', 
+		19: '6d12+30',
+		6: '2d6+8', 
+		20: '6d12+35',
+		7: '2d6+10', 
+		21: '6d12+40',
+		8: '2d8+10', 
+		22: '6d12+45',
+		9: '2d10+10', 
+		23: '6d12+50',
+		10: '3d8+10', 
+		24: '6d12+55',
+		11: '3d10+10', 
+		25: '6d12+60',
+		12: '3d12+10', 
+		26: '7d12+65',
+		13: '4d10+10', 
+		27: '8d12+70',
+		14: '4d10+15', 
+		28: '8d12+80'
+	}
+	if (damage) {
+		damage = parseInt(damage[1], 10);
+	} else {
+		damage = 1;
+	}
+	damage = damageTable[damage];
+	
+	return damage + ': ' + baseDice(damage);;
 };
 
 var shadowrunDice = function (message) {
@@ -814,6 +857,8 @@ var diceHandler = function (params) {
 			result = shadowrunDice(msgParts[1]);
 		} else if (msgParts[1].match(/^[0-9]+?k/)) {
 			result = l5rDice(msgParts[1], params.invokername, firstPart + remainder);
+		} else if (msgParts[1].match(/^[0-9]+?p/)) {
+			result = pokeDice(msgParts[1]);
 		}
 		if (result) {
 			msg = remainder + '\n' + params.invokername +
