@@ -160,42 +160,40 @@ var wodDice = function (message) {
 };
 
 var baseDice = function (message) {
-	var dice = message.match(/([0-9]+)d([0-9]+)/);
-	var auto = message.match(/(\+|-)([0-9]+)/);
+	var dice;
 	var diceSize;
 	var total = 0;
 	var builder = '';
 	var result;
-	if (dice) {
-		diceSize = parseInt(dice[2], 10);
-		dice = parseInt(dice[1], 10);
-	} else {
-		dice = 1;
-		diceSize = 6;
-	}
-	if (auto) {
-		auto = parseInt(auto[0], 10);
-	} else {
-		auto = 0;
-	}while (dice > 0) {
-		result = Math.floor(Math.random() * diceSize);
-		if (result === 0) {
-			result = diceSize;
-		}
-		if (result === 1) {
-			builder += '[b][color=Red]' + result + '[/color][/b]';
-		} else if (result === diceSize) {
-			builder += '[b][color=Green]' + result + '[/color][/b]';
+	message.split('+').forEach(function(part){
+		dice = part.match(/([0-9]+)d([0-9]+)/);
+		if (dice) {
+			diceSize = parseInt(dice[2], 10);
+			dice = parseInt(dice[1], 10);
 		} else {
-			builder += result;
+			dice = 0;
+			total += parseInt(part);
 		}
-		total += result;
-		dice -= 1;
-		if (dice > 0) {
-			builder += ',';
+		while (dice > 0) {
+			result = Math.floor(Math.random() * diceSize);
+			if (result === 0) {
+				result = diceSize;
+			}
+			if (result === 1) {
+				builder += '[b][color=Red]' + result + '[/color][/b]';
+			} else if (result === diceSize) {
+				builder += '[b][color=Green]' + result + '[/color][/b]';
+			} else {
+				builder += result;
+			}
+			total += result;
+			dice -= 1;
+			if (dice > 0) {
+				builder += ',';
+			}
 		}
-	}
-	total += auto;
+	});
+
 	return builder + '\n' + '[b]TOTAL: ' + total + '[/b]';
 };
 
@@ -367,6 +365,13 @@ var skMoves = function (params) {
 	} else {
 		if (params.invokername.toLowerCase() !== 'storyteller') {
 			name = params.invokername;
+			cl.send('clientupdate', {clid: clid, client_nickname: 'Moves'}, function () {
+				cl.send('sendtextmessage', {
+					targetmode: 2, msg: name + ' has recorded a maneuver'
+				}, function () {
+					cl.send('clientupdate', {clid: clid, client_nickname: 'Dice Roller'}, function () {});
+				});
+			});
 		} else {
 			raw = raw.split(' ');
 			name = raw.shift();
