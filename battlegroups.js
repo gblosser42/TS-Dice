@@ -159,23 +159,24 @@ var specials = {
 	}
 };
 
-var sword = new Weapon({
-	accuracy: [2],
-	damage: 10,
-	overwhelming: 2
-});
-
-var javalin = new Weapon({
-	accuracy: [3,1,-1],
-	damage: 8,
-	overwhelming: 1
-});
+var weapons = {
+	sword: new Weapon({
+		accuracy: [2],
+		damage: 10,
+		overwhelming: 2
+	}),
+	javelin: new Weapon({
+		accuracy: [3,1,-1],
+		damage: 8,
+		overwhelming: 1
+	})
+};
 
 var groupA = new BattleGroup({
 	name: 'Legio X',
 	health: 7,
-	melee: sword,
-	ranged: javalin,
+	melee: weapons.sword,
+	ranged: weapons.javelin,
 	meleePool: 7,
 	rangedPool: 8,
 	soak: 6,
@@ -190,8 +191,8 @@ var groupA = new BattleGroup({
 var groupB = new BattleGroup({
 	name: 'Legio IX',
 	health: 7,
-	melee: sword,
-	ranged: javalin,
+	melee: weapons.sword,
+	ranged: weapons.javelin,
 	meleePool: 7,
 	rangedPool: 8,
 	soak: 6,
