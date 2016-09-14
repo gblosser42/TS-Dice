@@ -5,9 +5,5 @@
     "parent": "ParentChannel",
     "server": "Server IP or address",
     "channels": "Comma separated list of channels to join. Will only join one at a time"
-  },
-  "discord" : {
-    "email": "email for login",
-    "password" : "password for login"
   }
 }
