@@ -1,4 +1,7 @@
 var roll = require('./dice').rawExaltedDice;
+var weapons = require('./weapons');
+
+var	battleGroups = [];
 
 var output = function(text) {
 	console.log(text);
@@ -6,24 +9,9 @@ var output = function(text) {
 
 /**
  * @param {{
- * accuracy: number[],
- * damage: number,
- * overwhelming: number,
- * auto: number}} options
- * @constructor
- */
-var Weapon = function (options) {
-	var weap = this;
-	weap.accuracy = options.accuracy || 0;
-	weap.damage = options.damage || 1;
-	weap.overwhelming = options.overwhelming || 1;
-	weap.auto = options.auto || 0;
-};
-
-/**
- * @param {{
  * name: string,
  * health: number,
+ * strength: number
  * melee: Weapon,
  * ranged: Weapon,
  * meleePool: number,
@@ -34,15 +22,16 @@ var Weapon = function (options) {
  * morale: number,
  * evasion: number,
  * parry: number,
- * might: number,
- * command: string,
- * specials: string[]}} options
+ * [might]: number,
+ * [command]: number,
+ * [specials]: string[]}} options
  * @constructor
  */
 var BattleGroup = function (options) {
 	var bg = this;
 	bg.name = options.name;
 	bg.health = options.health || 7;
+	bg.strength = options.strength || 1;
 	bg.melee = options.melee;
 	bg.ranged = options.ranged;
 	bg.meleePool = options.meleePool;
@@ -74,13 +63,35 @@ var BattleGroup = function (options) {
 		if (bg.isAlive) {
 			if (enemy.isAlive) {
 				if (!bg.isRouting) {
-					var cmdBonus = bg.command ? roll(bg.command) : -1;
-					var asuc = roll((cmdBonus + weapon.accuracy[range] + pool) + 'e+' + weapon.auto);
-					var threshold = asuc - enemy.defense;
-					output(cmdBonus + ' successes scored on the Command Roll');
+					var cmdBonus = bg.command ? bg.command : -1;
+					if (cmdBonus !== -1) {
+						if (bg.training === 'poor') {
+							cmdBonus -= 2;
+						} else if (bg.training === 'elite') {
+							cmdBonus += 2;
+						}
+						if (cmdBonus > 0) {
+							cmdBonus = roll(cmdBonus + 'e');
+							output(cmdBonus + ' successes scored on the Command Roll');
+						}
+					}
+					var asuc = roll((Math.max(cmdBonus,0) + weapon.accuracy[range] + pool + bg.size + bg.might) + 'e+' + weapon.auto);
+					var defense = enemy.defense;
+					if (enemy.training === 'average') {
+						defense += 1;
+					} else if (enemy.training === 'elite') {
+						defense += 2;
+					}
+					if (enemy.might > 0) {
+						defense += 1;
+					}
+					if (enemy.might > 2) {
+						defense += 1;
+					}
+					var threshold = asuc - defense;
 					if (threshold >= 0) {
-						output('HIT! ' + asuc + ' successes rolled aganst a defense of ' + enemy.defense + ', leaving ' + threshold + ' threshold successes');
-						var damage = roll(Math.max(threshold + weapon.damage - enemy.soak, weapon.overwhelming) + 'e');
+						output('HIT! ' + asuc + ' successes rolled aganst a defense of ' + defense + ', leaving ' + threshold + ' threshold successes');
+						var damage = roll(Math.max(threshold + bg.strength + weapon.damage + bg.might + bg.size - enemy.soak - enemy.size, weapon.overwhelming) + 'e');
 						enemy.damaged(damage);
 					} else {
 						output('Miss! ' + asuc + ' successes rolled aganst a defense of ' + enemy.defense + '.');
@@ -124,9 +135,16 @@ var BattleGroup = function (options) {
 		output(bg.name + ' ' + outcome + ' a morale check scoring ' + moraleResult + ' successes against a difficulty of ' + difficulty)
 	};
 
+	bg.fleeCheck = function() {
+		if (bg.isAlive && bg.isRouting) {
+			bg.isAlive = false;
+			output(bg.name + ' has fled the field!');
+		}
+	};
+
 	bg.damaged = function(dam) {
 		bg.magnitude -= dam;
-		output(dam + ' damage inflicted on ' + bg.name + '! ' + bg.magnitude + ' magnitude remaining')
+		output(dam + ' damage inflicted on ' + bg.name + '! ' + bg.magnitude + ' magnitude remaining');
 		while (bg.magnitude <= 0 && bg.size > 0) {
 			bg.size--;
 			if (bg.size <= 0) {
@@ -149,34 +167,46 @@ var BattleGroup = function (options) {
 			specials[special](bg);
 		}
 	});
+
+	battleGroups.push(bg);
 };
 
 
 var specials = {
 	unbreakable: function(bg) {
-		bg.health += 2;
-		bg.moraleCheck = function () {};
+		bg.health += 3;
+		bg.moraleCheck = function () {
+			output(bg.name + ' is FEARLESS!');
+		};
+	},
+	balanced: function(bg) {
+		bg.melee.overwhelming++;
+	},
+	crossbow: function(bg) {
+		bg.ranged.damage += (4 - bg.strength);
+	},
+	monster: function(bg) {
+		bg.fleeCheck = function () {
+			if (bg.isAlive && bg.isRouting) {
+				bg.isAlive = false;
+				output(bg.name + ' has stampeded off the field!');
+				battleGroups.forEach(function(group){
+					if(group.isAlive) {
+						bg.meleeAttack(group);
+					}
+				});
+			}
+		}
 	}
 };
 
-var weapons = {
-	sword: new Weapon({
-		accuracy: [2],
-		damage: 10,
-		overwhelming: 2
-	}),
-	javelin: new Weapon({
-		accuracy: [3,1,-1],
-		damage: 8,
-		overwhelming: 1
-	})
-};
 
 var groupA = new BattleGroup({
 	name: 'Legio X',
 	health: 7,
-	melee: weapons.sword,
-	ranged: weapons.javelin,
+	strength: 3,
+	melee: weapons.medium_melee,
+	ranged: weapons.medium_thrown,
 	meleePool: 7,
 	rangedPool: 8,
 	soak: 6,
@@ -185,14 +215,16 @@ var groupA = new BattleGroup({
 	morale: 6,
 	evasion: 2,
 	parry: 4,
-	command: '6e'
+	command: 6,
+	specials: ['balanced']
 });
 
 var groupB = new BattleGroup({
 	name: 'Legio IX',
 	health: 7,
-	melee: weapons.sword,
-	ranged: weapons.javelin,
+	strength: 3,
+	melee: weapons.medium_melee,
+	ranged: weapons.medium_thrown,
 	meleePool: 7,
 	rangedPool: 8,
 	soak: 6,
@@ -201,6 +233,17 @@ var groupB = new BattleGroup({
 	morale: 6,
 	evasion: 2,
 	parry: 4,
-	command: '6e',
-	specials: ['unbreakable']
+	command: 6,
+	specials: ['balanced', 'unbreakable']
 });
+
+groupA.meleeAttack(groupB);
+groupB.meleeAttack(groupA);
+groupA.meleeAttack(groupB);
+groupB.meleeAttack(groupA);
+groupA.meleeAttack(groupB);
+groupB.meleeAttack(groupA);
+groupA.meleeAttack(groupB);
+groupB.meleeAttack(groupA);
+groupA.meleeAttack(groupB);
+groupB.meleeAttack(groupA);
