@@ -1,5 +1,38 @@
 var roll = require('./dice').rawExaltedDice;
 var weapons = require('./weapons');
+var templates = require('./templates');
+
+String.prototype.capitalizeFirstLetter = function() {
+	return this.charAt(0).toUpperCase() + this.slice(1);
+};
+
+var specials = {
+	unbreakable: function(bg) {
+		bg.health += 3;
+		bg.moraleCheck = function () {
+			output(bg.name + ' is FEARLESS!');
+		};
+	},
+	balanced: function(bg) {
+		bg.melee.overwhelming++;
+	},
+	crossbow: function(bg) {
+		bg.ranged.damage += (4 - bg.strength);
+	},
+	monster: function(bg) {
+		bg.fleeCheck = function () {
+			if (bg.isAlive && bg.isRouting) {
+				bg.isAlive = false;
+				output(bg.name + ' has stampeded off the field!');
+				battleGroups.forEach(function(group){
+					if(group.isAlive) {
+						bg.meleeAttack(group);
+					}
+				});
+			}
+		}
+	}
+};
 
 var	battleGroups = [];
 
@@ -10,7 +43,7 @@ var output = function(text) {
 /**
  * @param {{
  * name: string,
- * health: number,
+ * [health]: number,
  * strength: number
  * melee: Weapon,
  * ranged: Weapon,
@@ -38,7 +71,7 @@ var BattleGroup = function (options) {
 	bg.rangedPool = options.rangedPool;
 	bg.soak = options.soak || 1;
 	bg.size = options.size || 1;
-	bg.training = options.training || 'poor';
+	bg.training = options.training.toLowerCase() || 'poor';
 	bg.morale = options.morale || 2;
 	bg.moraleDifficulty = 1;
 	bg.evasion = options.evasion || 1;
@@ -168,82 +201,77 @@ var BattleGroup = function (options) {
 		}
 	});
 
+	bg.output = function () {
+		var builder = '[b]' + bg.name + '[b] -- Size: {SIZE} Magnitude: {MAGNITUDE} Defense: {DEFENSE}  Soak: {SOAK} Morale: {MORALE} Melee: {ACCURACY}|{DAMAGE} Ranged: {RACC}|{RDAM} Training: {TRAINING} Might: {MIGHT}'
+
+		var soak = bg.soak + bg.size;
+		builder = builder.replace('{SOAK}', ''+soak);
+
+		var defense = bg.defense;
+		if (bg.training === 'average') {
+			defense += 1;
+		} else if (bg.training === 'elite') {
+			defense += 2;
+		}
+		if (bg.might > 0) {
+			defense += 1;
+		}
+		if (bg.might > 2) {
+			defense += 1;
+		}
+		builder = builder.replace('{DEFENSE}', ''+defense);
+
+		Object.keys(bg).forEach(function(key){
+			var val = bg[key];
+			if (typeof val === 'string') {
+				val = val.capitalizeFirstLetter();
+			}
+			builder=builder.replace('{' + key.toUpperCase() + '}', val);
+		});
+
+		builder = builder.replace('{ACCURACY}', ''+(bg.meleePool + bg.melee.accuracy[0] + bg.size + bg.might));
+
+		builder = builder.replace('{RACC}', (bg.rangedPool + bg.ranged.accuracy[0] + bg.size + bg.might) + '/' + (bg.rangedPool + bg.ranged.accuracy[1] + bg.size + bg.might));
+
+		builder = builder.replace('{DAMAGE}', (bg.strength + bg.melee.damage + bg.size + bg.might));
+
+		builder = builder.replace('{RDAM}', (bg.strength + bg.ranged.damage + bg.size + bg.might));
+
+		if (bg.specials.length > 0) {
+			builder += ' Specials: ' + bg.specials.join(',');
+		}
+
+		output(builder);
+	};
+
 	battleGroups.push(bg);
 };
 
-
-var specials = {
-	unbreakable: function(bg) {
-		bg.health += 3;
-		bg.moraleCheck = function () {
-			output(bg.name + ' is FEARLESS!');
-		};
-	},
-	balanced: function(bg) {
-		bg.melee.overwhelming++;
-	},
-	crossbow: function(bg) {
-		bg.ranged.damage += (4 - bg.strength);
-	},
-	monster: function(bg) {
-		bg.fleeCheck = function () {
-			if (bg.isAlive && bg.isRouting) {
-				bg.isAlive = false;
-				output(bg.name + ' has stampeded off the field!');
-				battleGroups.forEach(function(group){
-					if(group.isAlive) {
-						bg.meleeAttack(group);
-					}
-				});
-			}
-		}
+/**
+ * @param {string} temp
+ * @param {string} name
+ * @param {number} size
+ * @param {string} training
+ * @param {number} [command]
+ * @param {object} [overrides]
+ */
+var fromTemplate = function(temp, name, size, training, command, overrides) {
+	var template =JSON.parse(JSON.stringify(templates[temp]));
+	template.name = name;
+	template.size = size;
+	template.training = training;
+	template.command = command;
+	if (overrides) {
+		Object.keys(overrides).forEach(function (key) {
+			template[key] = overrides[key];
+		});
 	}
+	return new BattleGroup(template);
 };
 
+var farmers = fromTemplate('conscript', 'FARMERS', 4, 'elite', 0, {specials:['balanced','fearless']});
 
-var groupA = new BattleGroup({
-	name: 'Legio X',
-	health: 7,
-	strength: 3,
-	melee: weapons.medium_melee,
-	ranged: weapons.medium_thrown,
-	meleePool: 7,
-	rangedPool: 8,
-	soak: 6,
-	size: 5,
-	training: 'regular',
-	morale: 6,
-	evasion: 2,
-	parry: 4,
-	command: 6,
-	specials: ['balanced']
-});
+farmers.output();
 
-var groupB = new BattleGroup({
-	name: 'Legio IX',
-	health: 7,
-	strength: 3,
-	melee: weapons.medium_melee,
-	ranged: weapons.medium_thrown,
-	meleePool: 7,
-	rangedPool: 8,
-	soak: 6,
-	size: 5,
-	training: 'regular',
-	morale: 6,
-	evasion: 2,
-	parry: 4,
-	command: 6,
-	specials: ['balanced', 'unbreakable']
-});
-
-groupA.meleeAttack(groupB);
-groupB.meleeAttack(groupA);
-groupA.meleeAttack(groupB);
-groupB.meleeAttack(groupA);
-groupA.meleeAttack(groupB);
-groupB.meleeAttack(groupA);
-groupA.meleeAttack(groupB);
-groupB.meleeAttack(groupA);
-groupA.meleeAttack(groupB);
-groupB.meleeAttack(groupA);
+module.exports.BattleGroup = BattleGroup;
+module.exports.template = fromTemplate;
