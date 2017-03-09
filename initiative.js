@@ -13,6 +13,7 @@ var initiativeHandler = function (params) {
 	var parts = raw.split(' ');
 	var command = parts[0];
 	var highest = -9999999;
+	var votes = {};
 	if (parts[1]) {
 		if (parts[1].toLowerCase() === 'me' || parts[1].toLowerCase() === 'my') {
 			parts[1] = params.invokername.replace(/ /g,'');
@@ -345,6 +346,40 @@ var initiativeHandler = function (params) {
 		var output = tracker[name].initiative + ' ' + name + '('  + tracker[name].motes + '/' + tracker[name].maxmotes + ')' + ' [' + tracker[name].body + '|' + tracker[name].mood + ']';
 		sendMessage(output);
 	};
+	var vote = function () {
+		var voter = params.invokername.replace(/ /g,'');
+		votes[voter] = parts[1];
+	};
+	var newVote = function () {
+		sendMessage('Resetting vote');
+	};
+	var showVote = function () {
+		var results = {};
+		var max = 0;
+		var winners = [];
+		Object.keys(votes).forEach(function(vote){
+			vote = votes[vote];
+			if (!results[vote]) {
+				results[vote] = 0;
+			}
+			results[vote]++;
+		});
+		Object.keys(results).forEach(function(result){
+			var total = results[result];
+			if (total > max) {
+				max = total;
+				winners = [result];
+			} else if (total === max) {
+				winners.push(result);
+			}
+			sendMessage(result + ': ' + total);
+		});
+		if (winners.length === 1) {
+			sendMessage('The winner is ' + winners[0]);
+		} else {
+			sendMessage('Tie between ' + winners.join(','));
+		}
+	};
 	var help = function () {
 		var output = '\nreset\nnext\nadd NAME [INITIATIVE] [MAXMOTES]\nlist\ncheck NAME\nset NAME TRAIT VALUE\nmodify NAME TRAIT AMOUNT\nwithering ATTACKER DEFENDER AMOUNT\ndelete NAME\nundo\nredo\nduel [NAME1] [NAME2]\nhelp';
 		sendMessage(output);
@@ -392,6 +427,15 @@ var initiativeHandler = function (params) {
 				break;
 			case 'duel':
 				duel();
+				break;
+			case 'vote':
+				vote();
+				break;
+			case 'newVote':
+				newVote();
+				break;
+			case 'showVote':
+				showVote();
 				break;
 			case 'default':
 				sendMessage('Not Recognized Command');
