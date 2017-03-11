@@ -5,6 +5,7 @@ var output = '';
 var currentActors = [];
 var duelStep;
 var cl;
+var clid;
 /**
  * @param {{invokername: string, msg: string}} params
  */
@@ -26,6 +27,9 @@ var initiativeHandler = function (params) {
 	var sendMessage = function (msg, name) {
 		if (!name) {
 			name = 'Initiative';
+		}
+		if (!msg) {
+			msg = '';
 		}
 		cl.send('clientupdate', {clid: clid, client_nickname: name}, function () {
 			cl.send('sendtextmessage', {
@@ -397,11 +401,12 @@ var initiativeHandler = function (params) {
 				sendMessage('Not Recognized Command');
 		}
 	} catch (e) {
-		sendMessage('INPUT ERROR');
+		sendMessage('INPUT ERROR', 'ERROR BOT');
 	}
 };
 
-module.exports = function(client) {
+module.exports = function(client, clientId) {
 	cl = client;
+	clid = clientId;
 	return initiativeHandler;
 };

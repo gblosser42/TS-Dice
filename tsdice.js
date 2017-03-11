@@ -13,7 +13,7 @@ var pid;
 var clientMessageStatus = {};
 var storyteller;
 var moves = [];
-var initiativeHandler = require('./initiative')(cl);
+var initiativeHandler;
 var dice = require('./dice');
 
 var exaltedDice = dice.exaltedDice;
@@ -84,6 +84,27 @@ var skMoves = function (params) {
 	}
 };
 
+var diceResults = function (remainder, params, result, diceCode, msg, firstPart, target) {
+	msg = remainder + '\n' + params.invokername +
+				' rolling ' + diceCode + '\n' + result;
+			cl.send('clientupdate', {clid: clid, client_nickname: firstPart}, function () {
+				cl.send('sendtextmessage', {
+					targetmode: params.targetmode, target: target, msg: msg
+				}, function () {
+					if (params.targetmode === 1 && target !== storyteller && storyteller !== undefined) {
+						cl.send('sendtextmessage', {
+							targetmode: 1, target: storyteller, msg: msg
+						}, function () {
+							cl.send('clientupdate', {clid: clid, client_nickname: 'Dice Roller'}, function () {});
+						});
+					} else {
+						cl.send('clientupdate', {clid: clid, client_nickname: 'Dice Roller'}, function () {
+						});
+					}
+				});
+			});
+}
+
 /**
  * @param {{target: string, invokerid: number, msg: string, invokername: string, targetmode: number}} params
  */
@@ -112,7 +133,9 @@ var diceHandler = function (params) {
 			}
 		}
 		if (msgParts[1].match(/^[0-9]+?e/)) {
-			result = exaltedDice(msgParts[1]);
+			exaltedDice(msgParts[1], function(mesg) {
+					diceResults(remainder, params, mesg, diceCode, msg, firstPart, target);
+				});
 		} else if (msgParts[1].match(/^[0-9]+?w/)) {
 			result = wodDice(msgParts[1]);
 		} else if (msgParts[1].match(/^[0-9]+?d/)) {
@@ -125,24 +148,7 @@ var diceHandler = function (params) {
 			result = pokeDice(msgParts[1]);
 		}
 		if (result) {
-			msg = remainder + '\n' + params.invokername +
-				' rolling ' + diceCode + '\n' + result;
-			cl.send('clientupdate', {clid: clid, client_nickname: firstPart}, function () {
-				cl.send('sendtextmessage', {
-					targetmode: params.targetmode, target: target, msg: msg
-				}, function () {
-					if (params.targetmode === 1 && target !== storyteller && storyteller !== undefined) {
-						cl.send('sendtextmessage', {
-							targetmode: 1, target: storyteller, msg: msg
-						}, function () {
-							cl.send('clientupdate', {clid: clid, client_nickname: 'Dice Roller'}, function () {});
-						});
-					} else {
-						cl.send('clientupdate', {clid: clid, client_nickname: 'Dice Roller'}, function () {
-						});
-					}
-				});
-			});
+			diceResults(remainder, params, result, diceCode, msg, firstPart, target);
 		}
 	}
 };
@@ -157,6 +163,7 @@ cl.send('login', {client_login_name: uid, client_login_password: config.password
 	cl.send('use', {sid: 1}, function(){
 		cl.send('whoami', function (err, response) {
 			clid = response.client_id;
+			initiativeHandler = require('./initiative')(cl, clid)
 			cl.send('clientupdate', {clid: clid, client_nickname: 'Dice Roller'}, function () {
 				cl.send('servernotifyregister', {event: 'textchannel', id:0}, function(){
 					cl.on('textmessage', function (params) {

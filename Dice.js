@@ -1,6 +1,6 @@
-var exaltedDice = function (message) {
+var exaltedDice = function (message, callback) {
 	rawExaltedDice(message, function (successes,sucDice,builder) {
-		return builder + '\n' + '[b]SUCCESSES: ' + successes + '(' + sucDice + ')[/b]';
+		callback(builder + '\n' + '[b]SUCCESSES: ' + successes + '(' + sucDice + ')[/b]');
 	});
 };
 
