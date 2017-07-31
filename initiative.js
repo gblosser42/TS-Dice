@@ -3,6 +3,7 @@ var back = [];
 var forward = [];
 var output = '';
 var currentActors = [];
+var votes = {};
 var duelStep;
 var cl;
 var clid;
@@ -14,7 +15,6 @@ var initiativeHandler = function (params) {
 	var parts = raw.split(' ');
 	var command = parts[0];
 	var highest = -9999999;
-	var votes = {};
 	if (parts[1]) {
 		if (parts[1].toLowerCase() === 'me' || parts[1].toLowerCase() === 'my') {
 			parts[1] = params.invokername.replace(/ /g,'');
@@ -139,7 +139,6 @@ var initiativeHandler = function (params) {
 			output = highest + ':';
 			active.forEach(function (actor) {
 				actor.acted = true;
-				actor.motes = Math.min(actor.motes+5,actor.maxmotes);
 				output += ' ' + actor.name;
 				if (actor.maxmotes > 0) {
 					output += '('  + actor.motes + '/' + actor.maxmotes + ')';
@@ -155,13 +154,11 @@ var initiativeHandler = function (params) {
 				if (un === 'undo') {
 					active.forEach(function (actor, index) {
 						actor.acted = false;
-						actor.motes = oldActors[index].motes;
 					});
 					sendMessage('Undoing next turn');
 				} else {
 					active.forEach(function (actor) {
 						actor.acted = true;
-						actor.motes = Math.min(actor.motes+5,actor.maxmotes);
 					});
 					sendMessage('Redoing next turn');
 				}
@@ -172,6 +169,7 @@ var initiativeHandler = function (params) {
 			Object.keys(tracker).forEach(function (actorId) {
 				var actor = tracker[actorId];
 				actor.acted = false;
+				actor.motes = Math.min(actor.motes+5,actor.maxmotes);
 			});
 			list();
 			back.push(function (un) {
@@ -179,12 +177,14 @@ var initiativeHandler = function (params) {
 					Object.keys(tracker).forEach(function (actorId) {
 						var actor = tracker[actorId];
 						actor.acted = true;
+						actor.motes = oldActors[index].motes;
 					});
 					sendMessage('Undoing New Turn');
 				} else {
 					Object.keys(tracker).forEach(function (actorId) {
 						var actor = tracker[actorId];
 						actor.acted = false;
+						actor.motes = Math.min(actor.motes+5,actor.maxmotes);
 					});
 					sendMessage('NEW TURN');
 					list();
@@ -352,9 +352,10 @@ var initiativeHandler = function (params) {
 	};
 	var vote = function () {
 		var voter = params.invokername.replace(/ /g,'');
-		votes[voter] = parts[1];
+		votes[voter] = parts[1].toLowerCase();
 	};
 	var newVote = function () {
+		votes = [];
 		sendMessage('Resetting vote');
 	};
 	var showVote = function () {
